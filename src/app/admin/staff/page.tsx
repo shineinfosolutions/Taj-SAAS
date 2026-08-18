@@ -25,6 +25,7 @@ interface Staff {
   name: string;
   email: string;
   role: string;
+  pinSet?: boolean;
   isActive: boolean;
   lastLoginAt?: string;
 }
@@ -63,6 +64,7 @@ export default function StaffPage() {
       email: "",
       password: "",
       role: "captain",
+      pin: "",
       isActive: true,
     });
     setOpen(true);
@@ -91,6 +93,7 @@ export default function StaffPage() {
       email: s.email,
       password: "",
       role: s.role as StaffInput["role"],
+      pin: "",
       isActive: s.isActive,
     });
     setOpen(true);
@@ -121,8 +124,10 @@ export default function StaffPage() {
     const url = editTarget
       ? `/api/admin/staff/${editTarget._id}`
       : "/api/admin/staff";
-    const payload = { ...data };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = { ...data };
     if (!payload.password) delete payload.password;
+    if (!payload.pin) delete payload.pin; // Don't send empty pin
     const res = await fetch(url, {
       method: editTarget ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,7 +138,11 @@ export default function StaffPage() {
       toast.error(json.error ?? "Save failed");
       return;
     }
-    toast.success(editTarget ? "Staff updated" : "Staff created");
+    if (data.pin && data.pin.trim()) {
+      toast.success("✅ Staff saved & Security PIN set!");
+    } else {
+      toast.success(editTarget ? "Staff updated" : "Staff created");
+    }
     setOpen(false);
     qc.invalidateQueries({ queryKey: ["admin-staff"] });
   };
@@ -180,6 +189,9 @@ export default function StaffPage() {
                   Role
                 </th>
                 <th className="text-xs font-semibold uppercase tracking-wider text-base-content/40">
+                  Security PIN
+                </th>
+                <th className="text-xs font-semibold uppercase tracking-wider text-base-content/40">
                   Status
                 </th>
                 <th className="text-xs font-semibold uppercase tracking-wider text-base-content/40">
@@ -208,6 +220,17 @@ export default function StaffPage() {
                     >
                       {ROLE_LABELS[s.role as UserRole] ?? s.role}
                     </span>
+                  </td>
+                  <td>
+                    {s.pinSet ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-success/15 text-success border border-success/30">
+                        🔒 PIN Set
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-base-content/40 border border-dashed border-base-300">
+                        No PIN
+                      </span>
+                    )}
                   </td>
                   <td>
                     <div className="flex items-center gap-1">
@@ -277,21 +300,44 @@ export default function StaffPage() {
               aria-invalid={!!errors.email}
             />
           </AdminFormField>
-          <AdminFormField
-            label="Password"
-            hint={editTarget ? "(leave blank to keep current)" : undefined}
-            required={!editTarget}
-            error={
-              errors.password ? String(errors.password.message) : undefined
-            }
-          >
-            <Input
-              {...register("password")}
-              type="password"
-              aria-invalid={!!errors.password}
-              placeholder={editTarget ? "••••••" : "Min 6 characters"}
-            />
-          </AdminFormField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <AdminFormField
+              label="Password"
+              hint={editTarget ? "(leave blank to keep)" : undefined}
+              required={!editTarget}
+              error={
+                errors.password ? String(errors.password.message) : undefined
+              }
+            >
+              <Input
+                {...register("password")}
+                type="password"
+                aria-invalid={!!errors.password}
+                placeholder={editTarget ? "••••••" : "Min 6 chars"}
+              />
+            </AdminFormField>
+            <AdminFormField
+              label="🔑 Security PIN (4–6 digits)"
+              hint={editTarget?.pinSet ? "PIN already set · leave blank to keep" : "Required for order cancellation"}
+              error={errors.pin ? String(errors.pin.message) : undefined}
+            >
+              <Input
+                {...register("pin")}
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="off"
+                aria-invalid={!!errors.pin}
+                placeholder={editTarget?.pinSet ? "Enter new PIN to change" : "e.g. 1234"}
+                className="tracking-widest font-mono text-center"
+              />
+              {editTarget?.pinSet && (
+                <p className="text-[11px] text-success font-bold mt-1 flex items-center gap-1">
+                  🔒 PIN is currently set for this staff member
+                </p>
+              )}
+            </AdminFormField>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <AdminFormField label="Role">
               <select
@@ -305,6 +351,7 @@ export default function StaffPage() {
                 <option value="kitchen">Kitchen</option>
                 <option value="cashier">Cashier</option>
                 <option value="lead_manager">Lead Manager</option>
+                <option value="inventory_manager">Inventory Manager</option>
               </select>
             </AdminFormField>
             <AdminFormField label="Status">

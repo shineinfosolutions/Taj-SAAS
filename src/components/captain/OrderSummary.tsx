@@ -64,8 +64,10 @@ export default function OrderSummary({ captainName }: OrderSummaryProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to place order");
 
-      setPlaced({ kotNumber: data.kotNumber });
-      toast.success(`Order placed! ${data.kotNumber}`);
+      toast.success(`Order placed! ${data.kotNumber} — Sent to Kitchen`);
+      // Clear order build items and show active orders for this table immediately
+      useCaptainStore.setState({ orderItems: [], specialInstructions: "" });
+      setStep("active_orders");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to place order");
     } finally {

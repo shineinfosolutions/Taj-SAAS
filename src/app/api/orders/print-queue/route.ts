@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
     // `false` (not `$ne:true`) so the {kotPrinted, createdAt} index can seek —
     // this is the hottest polled route. New orders default kotPrinted:false.
     kotPrinted: false,
-    status: { $ne: "cancelled" },
+    status: { $nin: ["cancelled", "pending_captain"] },
+    isCaptainConfirmed: { $ne: false },
     createdAt: { $gte: fourHoursAgo },
   })
     .sort({ createdAt: 1 }) // oldest unprinted first

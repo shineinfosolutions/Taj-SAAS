@@ -13,16 +13,20 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const tableId = searchParams.get("tableId");
-  if (!tableId) {
-    return NextResponse.json({ error: "tableId required" }, { status: 400 });
-  }
+  const pendingOnly = searchParams.get("pendingOnly") === "true";
 
   await connectDB();
 
-  const orders = await Order.find({
-    tableId,
-    status: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const query: Record<string, any> = {};
+  if (tableId) query.tableId = tableId;
+
+  if (pendingOnly) {
+    query.status = "pending_captain";
+  } else {
+    query.status = {
       $in: [
+        "pending_captain",
         "pending",
         "preparing",
         "partially_ready",
@@ -30,9 +34,11 @@ export async function GET(req: NextRequest) {
         "partially_delivered",
         "delivered",
       ],
-    },
-  })
-    .sort({ createdAt: 1 })
+    };
+  }
+
+  const orders = await Order.find(query)
+    .sort({ createdAt: -1 })
     .lean<IOrder[]>();
 
   return NextResponse.json(orders);

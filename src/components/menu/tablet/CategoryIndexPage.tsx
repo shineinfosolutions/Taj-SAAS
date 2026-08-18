@@ -18,21 +18,21 @@ export default function CategoryIndexPage({
 }: Props) {
   return (
     <div
-      className="w-full h-full flex flex-col p-8 overflow-hidden"
-      style={{ width, height, background: "var(--menu-page-bg)" }}
+      className="w-full h-full flex flex-col px-8 pt-12 pb-8 overflow-hidden"
+      style={{ width, height, background: "var(--menu-page-bg, #FAF9F6)" }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="mb-6 text-center">
-        <p className="text-white/55 text-xs tracking-widest uppercase mb-1">
-          Contents
+        <p className="text-amber-800 text-xs font-bold tracking-widest uppercase mb-1">
+          ✦ Contents ✦
         </p>
-        <h2 className="font-playfair text-white text-2xl font-bold">
+        <h2 className="font-playfair text-slate-900 text-2xl sm:text-3xl font-black tracking-tight">
           Our Menu
         </h2>
-        <div className="w-12 h-px bg-white/20 mx-auto mt-3" />
+        <div className="w-16 h-0.5 bg-amber-400 mx-auto mt-3 rounded-full" />
       </div>
 
-      <div className="flex-1 grid grid-cols-2 gap-3 overflow-hidden content-start">
+      <div className="flex-1 grid grid-cols-2 gap-3.5 overflow-hidden content-start">
         {categories.map((cat, idx) => (
           <button
             key={cat._id}
@@ -43,22 +43,22 @@ export default function CategoryIndexPage({
             }}
             onClick={(e) => e.stopPropagation()}
             aria-label={`Jump to ${cat.name}, ${cat.items.length} items`}
-            className="flex items-center gap-3 p-3 rounded-xl bg-white/5 transition-colors text-left group cursor-pointer touch-manipulation active:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
+            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-sm hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-md transition-all text-left group cursor-pointer touch-manipulation active:scale-98 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70"
           >
-            <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-lg shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200/70 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
               {cat.iconEmoji ? (
                 cat.iconEmoji
               ) : (
-                <UtensilsCrossed className="w-5 h-5 text-[var(--menu-accent)]" />
+                <UtensilsCrossed className="w-5 h-5 text-amber-700" />
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-white text-sm font-medium truncate group-active:text-primary transition-colors">
+              <p className="text-slate-900 text-sm font-extrabold truncate group-hover:text-amber-700 transition-colors">
                 {cat.name}
               </p>
-              <p className="text-white/55 text-xs">{cat.items.length} items</p>
+              <p className="text-slate-500 text-xs font-medium">{cat.items.length} items</p>
             </div>
-            <span className="ml-auto text-white/40 text-xs font-mono tabular-nums">
+            <span className="ml-auto text-amber-800/80 text-xs font-mono font-bold tabular-nums bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
               {String(idx + 1).padStart(2, "0")}
             </span>
           </button>
@@ -66,7 +66,7 @@ export default function CategoryIndexPage({
       </div>
 
       <div className="mt-4 text-center">
-        <p className="text-white/45 text-xs tracking-widest">
+        <p className="text-slate-500 text-xs font-medium tracking-wider">
           Tap any category to jump to it
         </p>
       </div>

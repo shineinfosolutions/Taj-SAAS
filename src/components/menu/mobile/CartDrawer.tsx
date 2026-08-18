@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,10 @@ import {
   Phone,
   Minus,
   Plus,
+  CheckCircle2,
+  BellRing,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import {
@@ -44,15 +48,46 @@ export default function CartDrawer({
     totalAmount,
   } = useCartStore();
   const [instrValue, setInstrValue] = useState(specialInstructions);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [placedOrder, setPlacedOrder] = useState<{
+    kotNumber: string;
+    tableLabel: string;
+  } | null>(null);
+
+  const [availableTables, setAvailableTables] = useState<ILocation[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState<string>(location?._id || "");
+
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
 
   const total = totalAmount();
+  const isRoom = location?.type === "room";
+
+  useEffect(() => {
+    if (!location?._id && open) {
+      fetch("/api/locations?type=table")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setAvailableTables(data);
+            if (data.length > 0 && !selectedTableId) {
+              setSelectedTableId(data[0]._id);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [location, open, selectedTableId]);
 
   // Modal a11y: Escape to close, focus trap, and restore focus on close.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setPlacedOrder(null);
+      setError("");
+      return;
+    }
     prevFocusRef.current = document.activeElement as HTMLElement;
 
     const focusables = () =>
@@ -89,6 +124,52 @@ export default function CartDrawer({
       prevFocusRef.current?.focus?.();
     };
   }, [open, onClose]);
+
+  const handlePlaceOrder = async () => {
+    if (items.length === 0 || isSubmitting) return;
+    const targetTableId = location?._id || selectedTableId;
+    if (!targetTableId) {
+      setError("Please select a table to place your order.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/orders/self-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tableId: targetTableId,
+          locationCode: location?.code,
+          items: items.map((i) => ({
+            itemId: i.itemId,
+            quantity: i.quantity,
+            notes: undefined,
+          })),
+          specialInstructions: instrValue,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Failed to place order. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      clear();
+      setPlacedOrder({
+        kotNumber: data.order.kotNumber,
+        tableLabel: data.order.tableLabel || location?.label || "Table",
+      });
+    } catch {
+      setError("Network error. Please ask your captain directly.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleWhatsApp = () => {
     const phone = branding?.whatsappNumber ?? "";
@@ -144,13 +225,17 @@ export default function CartDrawer({
             <div className="px-4 py-3 flex items-center justify-between border-b border-base-300">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-primary" />
-                <h2 className="font-bold">Your Order</h2>
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-primary/15 text-primary border-primary/30">
-                  {items.length}
-                </span>
+                <h2 className="font-bold">
+                  {placedOrder ? "Order Status" : "Your Order"}
+                </h2>
+                {!placedOrder && (
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-primary/15 text-primary border-primary/30">
+                    {items.length}
+                  </span>
+                )}
               </div>
               <div className="flex gap-2">
-                {items.length > 0 && (
+                {!placedOrder && items.length > 0 && (
                   <button
                     className="btn btn-ghost btn-xs text-error"
                     onClick={clear}
@@ -170,15 +255,80 @@ export default function CartDrawer({
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-              {items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 gap-2">
+              {placedOrder ? (
+                /* Success Confirmation State */
+                <div className="py-6 flex flex-col items-center text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center text-success">
+                    <CheckCircle2 className="w-10 h-10" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold">Order Received!</h3>
+                    <p className="text-xs text-base-content/60">
+                      KOT <span className="font-mono font-bold text-primary">#{placedOrder.kotNumber}</span> · Table <span className="font-semibold">{placedOrder.tableLabel}</span>
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-base-200 border border-base-300 text-xs space-y-2 max-w-sm">
+                    <div className="flex items-center gap-2 text-warning font-semibold">
+                      <BellRing className="w-4 h-4 animate-bounce" />
+                      <span>Captain Notified for Confirmation</span>
+                    </div>
+                    <p className="text-base-content/70 leading-relaxed">
+                      Your captain is coming to your table to verify and confirm your order. Once confirmed, it will go straight to the kitchen.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={onClose}
+                    className="btn btn-primary w-full max-w-xs rounded-xl mt-2"
+                  >
+                    Done / Back to Menu
+                  </button>
+                </div>
+              ) : items.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
                   <LottiePlayer variant="empty-cart" size={110} />
-                  <p className="text-base-content/40 text-sm">
+                  <p className="text-base-content/50 text-sm font-medium">
                     Your cart is empty
                   </p>
+                  <button
+                    onClick={onClose}
+                    className="btn btn-sm btn-outline btn-primary rounded-xl px-6"
+                  >
+                    Back to Menu
+                  </button>
                 </div>
               ) : (
                 <>
+                  {/* Table identifier badge / selector */}
+                  {location ? (
+                    <div className="px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-lg text-xs font-semibold text-primary inline-flex items-center gap-1.5">
+                      <span>🪑 Ordering for {location.label}</span>
+                    </div>
+                  ) : availableTables.length > 0 ? (
+                    <div className="p-3 bg-base-200 rounded-xl border border-base-300 space-y-1">
+                      <label className="text-xs text-base-content/60 font-medium">Select Your Table</label>
+                      <select
+                        className="select select-bordered select-sm w-full font-bold"
+                        value={selectedTableId}
+                        onChange={(e) => setSelectedTableId(e.target.value)}
+                      >
+                        {availableTables.map((tbl) => (
+                          <option key={tbl._id} value={tbl._id}>
+                            {tbl.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+
+                  {error && (
+                    <div className="p-3 rounded-lg bg-error/15 text-error text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
                   {items.map((item) => (
                     <div key={item.itemId} className="flex items-center gap-3">
                       {item.imageUrl && (
@@ -239,7 +389,7 @@ export default function CartDrawer({
                       ref={inputRef}
                       className="textarea textarea-bordered bg-base-200 w-full text-sm mt-1 resize-none"
                       rows={2}
-                      placeholder="e.g. No onions, extra spicy..."
+                      placeholder="e.g. Less spicy, no onions, extra napkins..."
                       value={instrValue}
                       onChange={(e) => {
                         setInstrValue(e.target.value);
@@ -252,7 +402,7 @@ export default function CartDrawer({
             </div>
 
             {/* Footer */}
-            {items.length > 0 && (
+            {!placedOrder && items.length > 0 && (
               <div className="px-4 py-4 border-t border-base-300 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-base-content/60 text-sm">Total</span>
@@ -260,21 +410,45 @@ export default function CartDrawer({
                     {formatPrice(total)}
                   </span>
                 </div>
-                <button
-                  onClick={handleWhatsApp}
-                  className="btn btn-success w-full gap-2 text-white"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Send Order via WhatsApp
-                </button>
-                {branding?.callNumber && (
-                  <a
-                    href={`tel:${branding.callNumber}`}
-                    className="btn btn-outline btn-info w-full gap-2"
+
+                {/* Primary Action Button */}
+                {isRoom ? (
+                  <>
+                    <button
+                      onClick={handleWhatsApp}
+                      className="btn btn-success w-full gap-2 text-white"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Send Order via WhatsApp
+                    </button>
+                    {branding?.callNumber && (
+                      <a
+                        href={`tel:${branding.callNumber}`}
+                        className="btn btn-outline btn-info w-full gap-2"
+                      >
+                        <Phone className="w-4 h-4" />
+                        Call Reception
+                      </a>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={handlePlaceOrder}
+                    disabled={isSubmitting}
+                    className="btn btn-primary w-full gap-2 text-primary-content text-base font-bold shadow-lg"
                   >
-                    <Phone className="w-4 h-4" />
-                    Call Reception
-                  </a>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Placing Order…
+                      </>
+                    ) : (
+                      <>
+                        <BellRing className="w-5 h-5" />
+                        Place Order (Send to Captain)
+                      </>
+                    )}
+                  </button>
                 )}
               </div>
             )}

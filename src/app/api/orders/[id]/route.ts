@@ -5,9 +5,14 @@ import Order from "@/lib/db/models/Order";
 import Location from "@/lib/db/models/Location";
 import Item from "@/lib/db/models/Item";
 import Branding from "@/lib/db/models/Branding";
+import { Customer, computeCustomerTier } from "@/lib/db/models/Customer";
+import { Voucher } from "@/lib/db/models/Voucher";
 import { withTransaction } from "@/lib/db/withTransaction";
 import { billOrderTotals, type Discount } from "@/lib/billing";
 import { checkDiscountAllowed } from "@/lib/discount-guard";
+
+import bcrypt from "bcryptjs";
+import Staff from "@/lib/db/models/Staff";
 
 // Branding fields needed to price + police a bill discount.
 const BILLING_SELECT =
@@ -15,6 +20,89 @@ const BILLING_SELECT =
 import { deductForOrder, deductLine, reverseLine } from "@/lib/inventory/deduct";
 import { autoDisableOutOfStock } from "@/lib/inventory/auto86";
 import type { IOrder } from "@/types";
+
+/**
+ * Verify a 4-6 digit Security PIN against:
+ * 1. Logged-in staff member's individual PIN
+ * 2. Any active staff member's PIN (Captain / Cashier)
+ * 3. Manager/Admin override PIN from Branding / AdminUser
+ */
+async function verifyStaffOrAdminPin(
+  pinCandidate: string | undefined,
+  sessionUser: { id?: string; role?: string; name?: string | null }
+): Promise<{ valid: boolean; staffName: string; staffRole: string; staffId?: string }> {
+  const pin = pinCandidate?.trim();
+  if (!pin) {
+    return { valid: false, staffName: "", staffRole: "" };
+  }
+
+  // 1. If admin session, check Branding managerPinHash
+  if (sessionUser.role === "admin") {
+    const branding = await Branding.findOne({}).select("managerPinHash").lean();
+    if (branding?.managerPinHash) {
+      const match = await bcrypt.compare(pin, branding.managerPinHash);
+      if (match) {
+        return {
+          valid: true,
+          staffName: sessionUser.name || "Admin",
+          staffRole: "admin",
+          staffId: sessionUser.id,
+        };
+      }
+    }
+  }
+
+  // 2. Check logged-in staff member first
+  if (sessionUser.id) {
+    const loggedInStaff = await Staff.findById(sessionUser.id).lean();
+    if (loggedInStaff?.pinHash) {
+      const match = await bcrypt.compare(pin, loggedInStaff.pinHash);
+      if (match) {
+        return {
+          valid: true,
+          staffName: loggedInStaff.name,
+          staffRole: loggedInStaff.role,
+          staffId: String(loggedInStaff._id),
+        };
+      }
+    }
+  }
+
+  // 3. Match against any active staff member's unique PIN
+  const activeStaffList = await Staff.find({
+    isActive: true,
+    pinHash: { $exists: true, $ne: null },
+  }).lean();
+  for (const s of activeStaffList) {
+    if (s.pinHash) {
+      const match = await bcrypt.compare(pin, s.pinHash);
+      if (match) {
+        return {
+          valid: true,
+          staffName: s.name,
+          staffRole: s.role,
+          staffId: String(s._id),
+        };
+      }
+    }
+  }
+
+  // 4. Fallback: Manager PIN in Branding settings
+  const branding = await Branding.findOne({}).select("managerPinHash").lean();
+  if (branding?.managerPinHash) {
+    const match = await bcrypt.compare(pin, branding.managerPinHash);
+    if (match) {
+      return {
+        valid: true,
+        staffName: sessionUser.name || "Manager",
+        staffRole: sessionUser.role || "admin",
+        staffId: sessionUser.id,
+      };
+    }
+  }
+
+  return { valid: false, staffName: "", staffRole: "" };
+}
 
 // Derive the order-level status from its item statuses (cancelled items ignored).
 function recomputeStatus(
@@ -83,7 +171,7 @@ export async function PATCH(
   const session = await auth();
   if (
     !session?.user ||
-    !["admin", "kitchen", "cashier"].includes(session.user.role)
+    !["admin", "kitchen", "cashier", "captain"].includes(session.user.role)
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -93,24 +181,31 @@ export async function PATCH(
   await connectDB();
 
   try {
-    // Cashier/admin: free a table WITHOUT payment (no-show / walk-out / mistake,
-    // or a stuck "occupied" location with no active orders). Orders are marked
-    // "cancelled" (NOT "cleared") with a reason + actor so they stay out of
-    // revenue while leaving an audit trail. Note: `id` here is the TABLE/location
-    // id, not an order id — so this runs BEFORE the order lookup below.
+    // Cashier/Captain/Admin: free a table WITHOUT payment (no-show / walk-out / mistake).
+    // Requires valid Staff PIN and mandatory reason.
     if (body.action === "void_table") {
-      if (!["admin", "cashier"].includes(session.user.role)) {
+      if (!["admin", "cashier", "captain"].includes(session.user.role)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
-      const { tableId, reason } = body;
-      if (!tableId || !reason) {
+      const { tableId, reason, pin } = body;
+      if (!tableId || !reason?.trim()) {
         return NextResponse.json(
-          { error: "tableId and reason required" },
+          { error: "Table and cancellation reason are required." },
+          { status: 400 },
+        );
+      }
+
+      const authRes = await verifyStaffOrAdminPin(pin, session.user);
+      if (!authRes.valid) {
+        return NextResponse.json(
+          { error: "Invalid Security PIN. Please enter your valid 4-digit staff PIN." },
           { status: 400 },
         );
       }
 
       const now = new Date();
+      const cleanReason = reason.trim();
+
       const voided = await withTransaction(async (s) => {
         const tableOrders = await Order.find({
           tableId,
@@ -122,15 +217,24 @@ export async function PATCH(
             item.itemStatus = "cancelled";
             item.cancelledAt = now;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            item.cancelledBy = session.user.id as any;
-            item.cancelReason = reason;
+            item.cancelledBy = authRes.staffId as any;
+            item.cancelReason = cleanReason;
           }
           o.status = "cancelled";
+          o.kotPrinted = true;
           o.subtotal = 0;
           o.total = 0;
-          o.voidReason = reason;
+          o.voidReason = cleanReason;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          o.voidedBy = session.user.id as any;
+          o.voidedBy = authRes.staffId as any;
+          o.voidedByName = authRes.staffName;
+          o.voidedByRole = authRes.staffRole;
+          o.cancelReason = cleanReason;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          o.cancelledBy = authRes.staffId as any;
+          o.cancelledByName = authRes.staffName;
+          o.cancelledByRole = authRes.staffRole;
+          o.cancelledAt = now;
           await o.save({ session: s });
         }
         await Location.findByIdAndUpdate(
@@ -140,12 +244,132 @@ export async function PATCH(
         );
         return tableOrders.length;
       });
-      return NextResponse.json({ success: true, voided });
+      return NextResponse.json({ 
+        success: true, 
+        voided,
+        cancelledByName: authRes.staffName,
+        cancelledByRole: authRes.staffRole
+      });
     }
 
     const order = await Order.findById(id);
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    // Captain/Cashier/Admin: cancel a single order with PIN & mandatory reason
+    if (body.action === "cancel_order") {
+      if (!["admin", "captain", "cashier"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+      const { reason, pin } = body;
+      if (!reason?.trim()) {
+        return NextResponse.json(
+          { error: "A cancellation reason is required." },
+          { status: 400 },
+        );
+      }
+
+      const authRes = await verifyStaffOrAdminPin(pin, session.user);
+      if (!authRes.valid) {
+        return NextResponse.json(
+          { error: "Invalid Security PIN. Please enter your valid 4-digit staff PIN." },
+          { status: 400 },
+        );
+      }
+
+      const now = new Date();
+      const cleanReason = reason.trim();
+
+      for (const item of order.items) {
+        item.itemStatus = "cancelled";
+        item.cancelledAt = now;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        item.cancelledBy = authRes.staffId as any;
+        item.cancelReason = cleanReason;
+      }
+
+      order.status = "cancelled";
+      order.kotPrinted = true;
+      order.voidReason = cleanReason;
+      order.cancelReason = cleanReason;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      order.cancelledBy = authRes.staffId as any;
+      order.cancelledByName = authRes.staffName;
+      order.cancelledByRole = authRes.staffRole;
+      order.cancelledAt = now;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      order.voidedBy = authRes.staffId as any;
+      order.voidedByName = authRes.staffName;
+      order.voidedByRole = authRes.staffRole;
+
+      await withTransaction(async (s) => {
+        await order.save({ session: s });
+
+        // Check if other active orders remain for this table
+        const otherActive = await Order.exists({
+          tableId: order.tableId,
+          status: { $nin: ["cleared", "paid", "cancelled"] },
+          _id: { $ne: order._id },
+        }).session(s);
+
+        if (!otherActive) {
+          await Location.findByIdAndUpdate(
+            order.tableId,
+            { isOccupied: false },
+            { session: s },
+          );
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        order,
+        cancelledByName: authRes.staffName,
+        cancelledByRole: authRes.staffRole,
+      });
+    }
+
+    // Captain/Admin: verify & confirm customer-placed order -> releases to Kitchen & KOT Print Queue
+    if (body.action === "captain_confirm") {
+      if (!["admin", "captain", "cashier"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+      const now = new Date();
+      order.isCaptainConfirmed = true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      order.confirmedByCaptainId = session.user.id as any;
+      order.confirmedByCaptainName = session.user.name ?? "Captain";
+      if (!order.captainId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        order.captainId = session.user.id as any;
+        order.captainName = session.user.name ?? "Captain";
+      }
+      order.confirmedAt = now;
+      order.status = "pending";
+      for (const item of order.items) {
+        if (!item.itemStatus || (item.itemStatus as string) === "pending_captain") {
+          item.itemStatus = "pending";
+        }
+      }
+
+      await withTransaction(async (s) => {
+        // Deduct inventory for confirmed order
+        await deductForOrder(order, session.user.id, s);
+        await order.save({ session: s });
+        await Location.findByIdAndUpdate(
+          order.tableId,
+          { isOccupied: true },
+          { session: s },
+        );
+      });
+
+      autoDisableOutOfStock(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [...new Set(order.items.map((i: any) => String(i.itemId)))] as string[],
+      ).catch(() => null);
+
+      return NextResponse.json({ success: true, order });
     }
 
     // Cashier: pay & clear a single KOT
@@ -256,6 +480,8 @@ export async function PATCH(
       const brandingPT = await Branding.findOne({}).select(BILLING_SELECT).lean();
       const discountPT = parseDiscount(body);
 
+      const isVoucherDiscount = Boolean(body.voucherCode && (body.voucherDiscount || 0) > 0);
+
       // Pre-validate the table-level discount against policy before opening the
       // transaction (authoritative pre-tax base from the DB, not the client).
       const preOrders = await Order.find({
@@ -274,15 +500,20 @@ export async function PATCH(
             : Math.min(discountPT.value, preNet);
         preDiscount = Math.round(preDiscount * 100) / 100;
       }
-      const chkPT = await checkDiscountAllowed({
-        discountAmount: preDiscount,
-        net: preNet,
-        reason: body.discountReason,
-        pin: body.managerPin,
-        limits: brandingPT ?? {},
-      });
-      if (!chkPT.ok) {
-        return NextResponse.json({ error: chkPT.error }, { status: chkPT.status });
+      
+      let chkPT: import("@/lib/discount-guard").DiscountCheck = { ok: true, approved: false };
+      if (!isVoucherDiscount && discountPT) {
+        const resChk = await checkDiscountAllowed({
+          discountAmount: preDiscount,
+          net: preNet,
+          reason: body.discountReason,
+          pin: body.managerPin,
+          limits: brandingPT ?? {},
+        });
+        chkPT = resChk;
+        if (!chkPT.ok) {
+          return NextResponse.json({ error: chkPT.error }, { status: chkPT.status });
+        }
       }
 
       await withTransaction(async (s) => {
@@ -306,12 +537,11 @@ export async function PATCH(
             discountPT.type === "percent"
               ? (tableNet * discountPT.value) / 100
               : Math.min(discountPT.value, tableNet);
-          // Re-clamp to the hard cap against the AUTHORITATIVE in-transaction
-          // net (the pre-check ran on a non-transactional read; the table could
-          // have shrunk concurrently, pushing a flat ₹ over the % cap).
-          const capAmt =
-            ((brandingPT?.maxDiscountPercent ?? 100) * tableNet) / 100;
-          tableDiscount = Math.min(tableDiscount, capAmt);
+          if (!isVoucherDiscount) {
+            const capAmt =
+              ((brandingPT?.maxDiscountPercent ?? 100) * tableNet) / 100;
+            tableDiscount = Math.min(tableDiscount, capAmt);
+          }
           tableDiscount = Math.round(tableDiscount * 100) / 100;
         }
 
@@ -382,6 +612,22 @@ export async function PATCH(
           o.cashierId = session.user.id as any;
           o.paidAt = now;
           o.clearedAt = now;
+
+          // Save Customer & Voucher Info
+          if (body.customerPhone) {
+            o.customerPhone = body.customerPhone.trim();
+            o.customerName = body.customerName?.trim();
+            o.customerEmail = body.customerEmail?.trim();
+            o.customerTier = body.customerTier;
+            o.isCustomerMarried = body.isCustomerMarried;
+            if (body.customerDob) o.customerDob = new Date(body.customerDob);
+            if (body.customerAnniversary) o.customerAnniversary = new Date(body.customerAnniversary);
+          }
+          if (body.voucherCode) {
+            o.voucherCode = body.voucherCode.trim().toUpperCase();
+            o.voucherDiscount = body.voucherDiscount || 0;
+          }
+
           if (printBill) {
             o.billPrintRequested = true;
             o.billPrinted = false;
@@ -392,6 +638,53 @@ export async function PATCH(
             if (splitPayment) o.splitPayment = splitPayment;
           }
           await o.save({ session: s });
+        }
+
+        // Upsert Customer CRM in DB
+        if (body.customerPhone && body.customerPhone.trim()) {
+          const cleanPhone = body.customerPhone.trim();
+          let cust = await Customer.findOne({ phone: cleanPhone }).session(s);
+          if (cust) {
+            if (body.customerName) cust.name = body.customerName.trim();
+            if (body.customerEmail !== undefined) cust.email = body.customerEmail.trim();
+            if (body.isCustomerMarried !== undefined) cust.isMarried = Boolean(body.isCustomerMarried);
+            if (body.customerDob) cust.dob = new Date(body.customerDob);
+            if (body.customerAnniversary) cust.anniversaryDate = new Date(body.customerAnniversary);
+            cust.totalVisits += 1;
+            cust.totalSpend += Number(tableTotal);
+            cust.lastVisitAt = now;
+            cust.tier = computeCustomerTier(cust.totalVisits, cust.totalSpend);
+            await cust.save({ session: s });
+          } else {
+            await Customer.create(
+              [
+                {
+                  name: body.customerName?.trim() || "Guest",
+                  phone: cleanPhone,
+                  email: body.customerEmail?.trim(),
+                  isMarried: Boolean(body.isCustomerMarried),
+                  dob: body.customerDob ? new Date(body.customerDob) : undefined,
+                  anniversaryDate: body.customerAnniversary
+                    ? new Date(body.customerAnniversary)
+                    : undefined,
+                  totalVisits: 1,
+                  totalSpend: Number(tableTotal),
+                  tier: computeCustomerTier(1, Number(tableTotal)),
+                  lastVisitAt: now,
+                },
+              ],
+              { session: s },
+            );
+          }
+        }
+
+        // Increment Voucher usage if applied
+        if (body.voucherCode && body.voucherCode.trim()) {
+          await Voucher.findOneAndUpdate(
+            { code: body.voucherCode.trim().toUpperCase() },
+            { $inc: { usedCount: 1 } },
+            { session: s },
+          );
         }
 
         await Location.findByIdAndUpdate(
@@ -457,6 +750,71 @@ export async function PATCH(
         );
       });
       return NextResponse.json({ success: true });
+    }
+
+    // Captain / Admin: verify & confirm customer self-order
+    if (body.action === "captain_confirm") {
+      if (!["admin", "captain"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+      if (order.status !== "pending_captain" && order.isCaptainConfirmed) {
+        return NextResponse.json(
+          { error: "Order is already confirmed" },
+          { status: 400 },
+        );
+      }
+
+      const now = new Date();
+      const captainName = session.user.name || "Captain";
+
+      await withTransaction(async (s) => {
+        order.isCaptainConfirmed = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        order.captainId = session.user.id as any;
+        order.captainName = captainName;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        order.confirmedByCaptainId = session.user.id as any;
+        order.confirmedByCaptainName = captainName;
+        order.confirmedAt = now;
+        order.status = "pending";
+
+        // Mark items as pending with current timestamp if needed
+        for (const item of order.items) {
+          if (item.itemStatus === "pending" && !item.orderedAt) {
+            item.orderedAt = now;
+          }
+        }
+
+        // Deduct inventory for items in order
+        await deductForOrder(order, session.user.id, s);
+
+        await order.save({ session: s });
+
+        // Ensure table is marked occupied
+        await Location.findByIdAndUpdate(
+          order.tableId,
+          { isOccupied: true },
+          { session: s },
+        );
+      });
+
+      // Auto-disable any 86 out-of-stock items asynchronously
+      autoDisableOutOfStock(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [...new Set(order.items.map((i: any) => String(i.itemId)))] as string[],
+      ).catch(() => null);
+
+      return NextResponse.json({
+        success: true,
+        order: {
+          _id: order._id,
+          kotNumber: order.kotNumber,
+          tableLabel: order.tableLabel,
+          captainName: order.captainName,
+          status: order.status,
+          isCaptainConfirmed: order.isCaptainConfirmed,
+        },
+      });
     }
 
     // Admin: edit items of an already-placed order (add / remove / change qty).

@@ -15,7 +15,8 @@ import {
   Gift,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatElapsed } from "@/lib/utils";
+import { formatElapsed, formatPrice } from "@/lib/utils";
+import { BillPrintButton } from "./TableReceipt";
 import PaymentModal from "./PaymentModal";
 import TransferModal from "./TransferModal";
 import VoidModal from "./VoidModal";
@@ -37,6 +38,16 @@ export default function OrdersQueue() {
     queryKey: ["cashier-tables"],
     queryFn: fetchCashierTables,
     refetchInterval: 5000,
+  });
+
+  const { data: branding } = useQuery<{
+    hotelName?: string;
+    gstNumber?: string;
+    logoUrl?: string;
+  }>({
+    queryKey: ["cashier-branding-lite"],
+    queryFn: () => fetch("/api/admin/branding").then((r) => r.json()),
+    staleTime: 300_000,
   });
 
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -335,28 +346,41 @@ export default function OrdersQueue() {
                   )}
                 </AnimatePresence>
 
-                <button
-                  onClick={() => canCollect && setSelected(table)}
-                  disabled={!canCollect}
-                  className="btn btn-success btn-sm w-full gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={
-                    !canCollect
-                      ? `${pendingKots.length} KOT${pendingKots.length > 1 ? "s" : ""} have unresolved items — expand to deliver or cancel them`
-                      : undefined
-                  }
-                >
-                  <Receipt className="w-4 h-4 shrink-0" />
-                  {canCollect ? (
-                    <span className="truncate">
-                      Collect Rs.{table.total.toFixed(2)}
-                    </span>
-                  ) : (
-                    <span className="truncate text-warning text-xs">
-                      ⏳ Resolve {pendingKots.length} KOT
-                      {pendingKots.length > 1 ? "s" : ""} to bill
-                    </span>
-                  )}
-                </button>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <BillPrintButton
+                    data={{ tableLabel: table.tableLabel, kots: table.kots }}
+                    hotelName={branding?.hotelName}
+                    gstNumber={branding?.gstNumber}
+                    logoUrl={branding?.logoUrl}
+                    label="Print Bill"
+                  />
+
+                  <button
+                    onClick={() => canCollect && setSelected(table)}
+                    disabled={!canCollect}
+                    className={`btn btn-sm gap-1.5 rounded-xl font-extrabold shadow transition-all text-xs ${
+                      canCollect
+                        ? "bg-amber-400 hover:bg-amber-300 text-black border-none cursor-pointer"
+                        : "bg-white/10 text-white/50 border-white/10 cursor-not-allowed opacity-60"
+                    }`}
+                    title={
+                      !canCollect
+                        ? `${pendingKots.length} KOT${pendingKots.length > 1 ? "s" : ""} have unresolved items — expand to deliver or cancel them`
+                        : undefined
+                    }
+                  >
+                    <Receipt className="w-3.5 h-3.5 shrink-0" />
+                    {canCollect ? (
+                      <span className="truncate">
+                        Collect {formatPrice(table.total)}
+                      </span>
+                    ) : (
+                      <span className="truncate text-amber-300 text-[11px]">
+                        Resolve {pendingKots.length} KOT
+                      </span>
+                    )}
+                  </button>
+                </div>
               </motion.div>
             );
           })}

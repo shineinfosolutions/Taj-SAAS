@@ -111,6 +111,7 @@ export interface IStaff {
 // ─── Order / KOT ──────────────────────────────────────────────────────────
 
 export type OrderStatus =
+  | "pending_captain"
   | "pending"
   | "preparing"
   | "partially_ready"
@@ -160,9 +161,13 @@ export interface IOrder {
   kotNumber: string;
   tableId: string;
   tableLabel: string;
-  captainId: string;
-  captainName: string;
-  placedByRole?: "captain" | "cashier" | "admin";
+  captainId?: string;
+  captainName?: string;
+  placedByRole?: "customer" | "captain" | "cashier" | "admin";
+  isCaptainConfirmed?: boolean;
+  confirmedByCaptainId?: string;
+  confirmedByCaptainName?: string;
+  confirmedAt?: string;
   status: OrderStatus;
   items: IOrderItem[];
   specialInstructions?: string;
@@ -178,10 +183,26 @@ export interface IOrder {
   paymentMethod?: PaymentMethod;
   paymentAmount?: number;
   cashierId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerTier?: CustomerTier;
+  isCustomerMarried?: boolean;
+  customerDob?: string;
+  customerAnniversary?: string;
+  voucherCode?: string;
+  voucherDiscount?: number;
   paidAt?: string;
   clearedAt?: string;
   voidReason?: string;
   voidedBy?: string;
+  voidedByName?: string;
+  voidedByRole?: string;
+  cancelReason?: string;
+  cancelledBy?: string;
+  cancelledByName?: string;
+  cancelledByRole?: string;
+  cancelledAt?: string;
   transferredFrom?: string;
   reopenReason?: string;
   reopenedBy?: string;
@@ -292,3 +313,45 @@ export interface OrderMetrics {
   revenueByDay: { date: string; revenue: number }[];
   topItems: { name: string; count: number }[];
 }
+
+// ─── Customer CRM & Loyalty ────────────────────────────────────────────────
+
+export type CustomerTier = "new" | "regular" | "vip" | "platinum";
+
+export interface ICustomer {
+  _id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  isMarried: boolean;
+  dob?: string;
+  anniversaryDate?: string;
+  totalVisits: number;
+  totalSpend: number;
+  tier: CustomerTier;
+  lastVisitAt: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Vouchers & Coupons ────────────────────────────────────────────────────
+
+export interface IVoucher {
+  _id: string;
+  code: string;
+  description?: string;
+  discountType: "flat" | "percent";
+  discountValue: number;
+  minBillAmount?: number;
+  maxDiscountAmount?: number;
+  customerPhone?: string;
+  validFrom: string;
+  validTill: string;
+  usageLimit?: number;
+  usedCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+

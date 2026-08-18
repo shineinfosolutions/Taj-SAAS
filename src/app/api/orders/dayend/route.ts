@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   const byCategory: Record<string, { qty: number; revenue: number }> = {};
   const topItems: Record<string, { qty: number; revenue: number }> = {};
   const byHour: Record<string, number> = {};
+  const byCaptain: Record<string, { orders: number; revenue: number }> = {};
 
   for (const o of settled) {
     sales += o.total ?? 0;
@@ -46,6 +47,13 @@ export async function GET(req: NextRequest) {
     const when = o.clearedAt ?? o.paidAt ?? o.createdAt;
     const hour = `${new Date(when).getHours()}`.padStart(2, "0");
     byHour[hour] = (byHour[hour] ?? 0) + (o.total ?? 0);
+
+    const cap = o.captainName?.trim() || (o.placedByRole === "cashier" ? "Cashier Desk" : "Direct / QR");
+    byCaptain[cap] = {
+      orders: (byCaptain[cap]?.orders ?? 0) + 1,
+      revenue: (byCaptain[cap]?.revenue ?? 0) + (o.total ?? 0),
+    };
+
     for (const it of o.items ?? []) {
       if (it.itemStatus === "cancelled") continue;
       if (it.isNC) {
@@ -73,6 +81,10 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 15);
 
+  const captains = Object.entries(byCaptain)
+    .map(([name, v]) => ({ name, orders: v.orders, revenue: Math.round(v.revenue) }))
+    .sort((a, b) => b.revenue - a.revenue);
+
   void byCategory;
 
   return NextResponse.json({
@@ -93,5 +105,6 @@ export async function GET(req: NextRequest) {
       .map(([hour, amount]) => ({ hour, amount: Math.round(amount) }))
       .sort((a, b) => a.hour.localeCompare(b.hour)),
     topItems: top,
+    byCaptain: captains,
   });
 }

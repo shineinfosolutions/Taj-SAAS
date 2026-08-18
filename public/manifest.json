@@ -1,8 +1,10 @@
 {
-  "name": "Taj Restaurant & Cafe",
-  "short_name": "Taj Cafe",
-  "description": "Taj Restaurant & Cafe — Digital Menu & Captain App",
-  "start_url": "/",
+  "id": "/customer-menu-pwa",
+  "name": "Taj Restaurant — Digital Menu",
+  "short_name": "Taj Menu",
+  "description": "Taj Restaurant & Cafe — Scan & Order Digital Menu",
+  "start_url": "/menu?source=pwa_customer",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0f0f0f",
@@ -27,26 +29,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "shortcuts": [
-    {
-      "name": "Captain App",
-      "short_name": "Captain",
-      "url": "/captain",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Kitchen Display",
-      "short_name": "Kitchen",
-      "url": "/kitchen",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Cashier",
-      "short_name": "Cashier",
-      "url": "/cashier",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
-    }
-  ],
-  "screenshots": []
+  ]
 }

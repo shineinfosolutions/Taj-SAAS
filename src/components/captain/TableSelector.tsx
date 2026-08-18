@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Users, Clock } from "lucide-react";
-import type { ILocation } from "@/types";
+import { Users, Clock, BellRing, Utensils } from "lucide-react";
+import { useCaptainStore } from "@/store/captain";
+import type { ILocation, IOrder } from "@/types";
 
 interface TableSelectorProps {
   onSelectTable: (table: ILocation) => void;
@@ -15,19 +17,97 @@ async function fetchLocations(): Promise<ILocation[]> {
   return res.json();
 }
 
+async function fetchActiveOrders(): Promise<IOrder[]> {
+  const res = await fetch("/api/orders/captain", { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+import { playLoudOrderChime } from "@/hooks/useCaptainOrderAudioAlert";
+
 export default function TableSelector({ onSelectTable }: TableSelectorProps) {
+  const setStep = useCaptainStore((s) => s.setStep);
+  const prevPendingCount = useRef(0);
+
   const { data: locations = [], isLoading } = useQuery<ILocation[]>({
     queryKey: ["captain-locations"],
     queryFn: fetchLocations,
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
-  // Room locations disabled for Taj (restaurant & cafe) — tables only.
-  const list = locations.filter((l) => l.type === "table");
+  const { data: allOrders = [] } = useQuery<IOrder[]>({
+    queryKey: ["captain-all-active-orders"],
+    queryFn: fetchActiveOrders,
+    refetchInterval: 3000,
+  });
 
-  const free = list.filter((t) => !t.isOccupied);
-  const occupied = list.filter((t) => t.isOccupied);
-  const noun = "Tables";
+  // Index orders by tableId
+  const pendingSelfOrdersByTable = new Map<string, IOrder[]>();
+  const runningOrdersByTable = new Map<string, IOrder[]>();
+
+  allOrders.forEach((o) => {
+    const tId = String(o.tableId);
+    if (o.status === "pending_captain" || o.isCaptainConfirmed === false) {
+      const cur = pendingSelfOrdersByTable.get(tId) || [];
+      cur.push(o);
+      pendingSelfOrdersByTable.set(tId, cur);
+    } else if (
+      [
+        "pending",
+        "preparing",
+        "partially_ready",
+        "ready",
+        "partially_delivered",
+        "delivered",
+      ].includes(o.status)
+    ) {
+      const cur = runningOrdersByTable.get(tId) || [];
+      cur.push(o);
+      runningOrdersByTable.set(tId, cur);
+    }
+  });
+
+  // Calculate total pending self-orders for loud audio buzzer
+  const totalPendingSelfOrders = Array.from(pendingSelfOrdersByTable.values()).reduce(
+    (s, arr) => s + arr.length,
+    0,
+  );
+
+  useEffect(() => {
+    if (totalPendingSelfOrders > prevPendingCount.current) {
+      playLoudOrderChime();
+    }
+    prevPendingCount.current = totalPendingSelfOrders;
+  }, [totalPendingSelfOrders]);
+
+  const list = locations.filter((l) => l.type === "table");
+  const free = list.filter(
+    (t) =>
+      !t.isOccupied &&
+      !pendingSelfOrdersByTable.has(String(t._id)) &&
+      !runningOrdersByTable.has(String(t._id)),
+  );
+  const orderedCount = Array.from(pendingSelfOrdersByTable.keys()).length;
+  const occupied = list.filter(
+    (t) =>
+      t.isOccupied ||
+      runningOrdersByTable.has(String(t._id)) ||
+      pendingSelfOrdersByTable.has(String(t._id)),
+  );
+
+  const handleTableClick = (table: ILocation) => {
+    const hasPending = pendingSelfOrdersByTable.has(String(table._id));
+    const hasRunning = runningOrdersByTable.has(String(table._id));
+
+    onSelectTable(table);
+
+    // If table has orders or self-orders, go directly to active_orders view
+    if (hasPending || hasRunning || table.isOccupied) {
+      setStep("active_orders");
+    } else {
+      setStep("order_build");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -39,83 +119,125 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="stat bg-base-200 rounded-2xl border border-base-300 p-4">
-          <div className="stat-figure text-success">
+      {/* Stats Header */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="stat bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div className="stat-figure text-emerald-700">
             <Users className="w-6 h-6" />
           </div>
-          <div className="stat-title text-xs">Free {noun}</div>
-          <div className="stat-value text-success text-3xl">{free.length}</div>
+          <div className="stat-title text-xs font-black uppercase tracking-wider text-slate-600">Free Tables</div>
+          <div className="stat-value text-emerald-800 text-3xl font-mono font-black">{free.length}</div>
         </div>
-        <div className="stat bg-base-200 rounded-2xl border border-base-300 p-4">
-          <div className="stat-figure text-error">
+
+        <div
+          className={`stat rounded-2xl border p-4 transition-all shadow-md ${
+            orderedCount > 0
+              ? "bg-gradient-to-br from-amber-50 to-amber-100/90 border-2 border-amber-400 animate-pulse text-amber-950"
+              : "bg-white border-slate-200"
+          }`}
+        >
+          <div className="stat-figure text-amber-600">
+            <BellRing className={`w-6 h-6 ${orderedCount > 0 ? "animate-bounce" : ""}`} />
+          </div>
+          <div className="stat-title text-xs font-black uppercase tracking-wider text-amber-950">Ordered (Verify)</div>
+          <div className="stat-value text-amber-800 text-3xl font-mono font-black">{orderedCount}</div>
+        </div>
+
+        <div className="stat bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div className="stat-figure text-rose-700">
             <Clock className="w-6 h-6" />
           </div>
-          <div className="stat-title text-xs">Occupied</div>
-          <div className="stat-value text-error text-3xl">
-            {occupied.length}
-          </div>
+          <div className="stat-title text-xs font-black uppercase tracking-wider text-slate-600">Occupied</div>
+          <div className="stat-value text-rose-800 text-3xl font-mono font-black">{occupied.length}</div>
         </div>
       </div>
 
       {/* Grid */}
       {list.length === 0 ? (
-        <div className="text-center py-16 text-base-content/40">
-          <p className="text-lg">
-            No active {noun.toLowerCase()} found.
-          </p>
-          <p className="text-sm mt-1">
-            Ask admin to add {noun.toLowerCase()} locations.
-          </p>
+        <div className="text-center py-16 text-slate-400">
+          <p className="text-lg font-black text-slate-800">No active tables found.</p>
+          <p className="text-sm mt-1 text-slate-600 font-medium">Ask admin to add table locations.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-          {list.map((table, i) => (
-            <motion.button
-              key={table._id}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.03 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => onSelectTable(table)}
-              className={`
-                relative flex flex-col items-center justify-center gap-1
-                rounded-2xl p-4 border-2 transition-colors text-center
-                ${
-                  table.isOccupied
-                    ? "bg-error/10 border-error/40 text-error hover:bg-error/20"
-                    : "bg-success/10 border-success/40 text-success hover:bg-success/20"
-                }
-              `}
-            >
-              {/* Status dot */}
-              <span
-                className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
-                  table.isOccupied ? "bg-error animate-pulse" : "bg-success"
-                }`}
-              />
+        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+          {list.map((table, i) => {
+            const hasSelfOrder = pendingSelfOrdersByTable.has(String(table._id));
+            const hasRunning = runningOrdersByTable.has(String(table._id));
+            const isOcc = table.isOccupied || hasRunning;
 
-              <span className="text-2xl font-bold font-mono-jetbrains">
-                {table.code}
+            let cardStyle = "bg-emerald-50/90 border-2 border-emerald-300 hover:bg-emerald-100/90 shadow-sm";
+            let statusBadge = (
+              <span className="text-xs font-black text-emerald-950 bg-emerald-200/80 border border-emerald-300/80 px-2.5 py-0.5 rounded-lg tracking-tight">
+                Free
               </span>
-              <span className="text-xs font-medium truncate w-full text-center opacity-80">
-                {table.isOccupied ? "Occupied" : "Free"}
-              </span>
-              {table.capacity && (
-                <span className="text-xs opacity-60">
-                  {table.capacity} seats
+            );
+            let dotColor = "bg-emerald-600";
+
+            if (hasSelfOrder) {
+              cardStyle =
+                "bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-400 shadow-md ring-4 ring-amber-400/25 hover:bg-amber-100";
+              statusBadge = (
+                <span className="text-xs font-black text-amber-950 bg-amber-300/90 border border-amber-400 px-2.5 py-0.5 rounded-lg tracking-tight animate-pulse">
+                  Ordered (Verify)
                 </span>
-              )}
-            </motion.button>
-          ))}
+              );
+              dotColor = "bg-amber-600 animate-ping";
+            } else if (isOcc) {
+              cardStyle = "bg-rose-50/90 border-2 border-rose-300 hover:bg-rose-100/90 shadow-sm";
+              statusBadge = (
+                <span className="text-xs font-black text-rose-950 bg-rose-200/80 border border-rose-300/80 px-2.5 py-0.5 rounded-lg tracking-tight">
+                  Occupied
+                </span>
+              );
+              dotColor = "bg-rose-600 animate-pulse";
+            }
+
+            return (
+              <motion.button
+                key={table._id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.02 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => handleTableClick(table)}
+                className={`
+                  relative flex flex-col items-center justify-center gap-1.5
+                  rounded-2xl p-4 transition-all text-center cursor-pointer
+                  ${cardStyle}
+                `}
+              >
+                {/* Status Dot / Indicator */}
+                <span className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${dotColor}`} />
+
+                {hasSelfOrder && (
+                  <span className="absolute top-2 left-2 text-[10px] bg-amber-500 text-white font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
+                    <BellRing className="w-3 h-3" /> NEW
+                  </span>
+                )}
+
+                {/* Table Code in Deep High-Contrast Obsidian Black */}
+                <span className="text-2xl sm:text-3xl font-black font-mono text-slate-950 mt-1 tracking-tight">
+                  {table.code}
+                </span>
+
+                <div className="w-full flex justify-center mt-0.5">
+                  {statusBadge}
+                </div>
+
+                {table.capacity && (
+                  <span className="text-xs text-slate-700 font-extrabold flex items-center gap-1 mt-0.5">
+                    <Utensils className="w-3.5 h-3.5 text-slate-600" /> {table.capacity} seats
+                  </span>
+                )}
+              </motion.button>
+            );
+          })}
         </div>
       )}
 
-      <p className="text-xs text-base-content/30 text-center">
-        Auto-refreshes every 5 seconds · {list.length} total{" "}
-        {noun.toLowerCase()}
+      <p className="text-xs text-slate-600 text-center font-bold">
+        Auto-refreshes every 3 seconds · {list.length} total tables
       </p>
     </div>
   );

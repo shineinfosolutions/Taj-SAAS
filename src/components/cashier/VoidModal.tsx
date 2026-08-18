@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, KeyRound, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 
@@ -12,7 +12,14 @@ interface VoidModalProps {
   onVoided: () => void;
 }
 
-const PRESET_REASONS = ["No-show", "Walk-out", "Wrong table", "Duplicate KOT"];
+const PRESET_REASONS = [
+  "No-show",
+  "Walk-out",
+  "Wrong table",
+  "Duplicate KOT",
+  "Customer cancelled",
+  "Order mistake",
+];
 
 export default function VoidModal({
   table,
@@ -20,15 +27,26 @@ export default function VoidModal({
   onVoided,
 }: VoidModalProps) {
   const [reason, setReason] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleVoid = async () => {
     const finalReason = reason.trim();
-    if (!finalReason) {
-      toast.error("A reason is required");
+    const finalPin = pin.trim();
+
+    if (!finalPin) {
+      setError("Security PIN is required to void table.");
       return;
     }
+    if (!finalReason) {
+      setError("A cancellation reason is required.");
+      return;
+    }
+
     setLoading(true);
+    setError("");
+
     try {
       const res = await fetch(`/api/orders/${table.anchorKotId}`, {
         method: "PATCH",
@@ -37,16 +55,21 @@ export default function VoidModal({
           action: "void_table",
           tableId: table.tableId,
           reason: finalReason,
+          pin: finalPin,
         }),
       });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error);
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Void failed. Invalid PIN.");
       }
-      toast.success("Table freed — orders voided (no charge)");
+
+      toast.success(
+        `Table freed — voided by ${data.cancelledByName || "Staff"}`
+      );
       onVoided();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Void failed");
+      setError(e instanceof Error ? e.message : "Void failed");
     } finally {
       setLoading(false);
     }
@@ -58,7 +81,7 @@ export default function VoidModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4"
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -66,16 +89,16 @@ export default function VoidModal({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 60, opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="bg-base-100 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+          className="bg-base-100 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden text-base-content border border-base-300"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-base-300 bg-error/5">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-base-300 bg-error/10">
             <div>
-              <h2 className="font-bold text-lg flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-error" />
-                Free Without Payment
+              <h2 className="font-bold text-lg flex items-center gap-2 text-error">
+                <Trash2 className="w-5 h-5" />
+                Free Without Payment (Void)
               </h2>
-              <p className="text-sm text-base-content/60">
+              <p className="text-xs text-base-content/70 mt-0.5 font-medium">
                 {table.tableLabel} · {table.kots.length} KOT
                 {table.kots.length !== 1 ? "s" : ""} · Rs.
                 {table.total.toFixed(2)}
@@ -91,40 +114,77 @@ export default function VoidModal({
           </div>
 
           <div className="p-5 flex flex-col gap-4">
-            <p className="text-xs text-warning bg-warning/10 rounded-lg px-3 py-2">
-              Orders will be cancelled and kept OUT of sales. This cannot be
-              undone.
-            </p>
+            <div className="flex items-start gap-2 bg-error/10 border border-error/20 rounded-2xl p-3 text-xs font-semibold text-error">
+              <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>
+                Orders will be marked cancelled and excluded from sales revenue. Your Staff PIN will be recorded in the audit log.
+              </p>
+            </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {PRESET_REASONS.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setReason(r)}
-                  className={`btn btn-xs ${reason === r ? "btn-error" : "btn-outline"}`}
-                >
-                  {r}
-                </button>
-              ))}
+            {/* Preset reasons */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-base-content/70">
+                Cancellation Reason <span className="text-error">*</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_REASONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setReason(r)}
+                    className={`btn btn-xs rounded-xl font-bold ${
+                      reason === r ? "btn-error text-white" : "btn-outline"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <input
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Reason (required)"
-              className="input input-bordered w-full"
+              placeholder="Or type custom reason..."
+              className="input input-bordered input-sm w-full rounded-xl text-xs font-medium"
             />
+
+            {/* 4-digit Security PIN */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-xs font-bold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-warning" />
+                  Your 4-Digit Staff PIN <span className="text-error">*</span>
+                </span>
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="••••"
+                className="input input-bordered input-md w-full text-center text-xl tracking-widest font-mono font-black rounded-xl border-warning/50 focus:border-warning"
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs font-bold text-error bg-error/10 border border-error/20 rounded-xl px-3 py-2 text-center">
+                ⚠️ {error}
+              </p>
+            )}
 
             <button
               onClick={handleVoid}
               disabled={loading}
-              className="btn btn-error btn-lg w-full"
+              className="btn btn-error btn-md w-full font-black rounded-xl text-white shadow-md cursor-pointer"
             >
               {loading ? (
-                <span className="loading loading-spinner" />
+                <span className="loading loading-spinner loading-sm" />
               ) : (
-                "Free Table (No Charge)"
+                "Authorize & Free Table (No Charge)"
               )}
             </button>
           </div>

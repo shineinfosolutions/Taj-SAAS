@@ -3,8 +3,8 @@
 
 // Bump this on every deploy that changes hashed assets — `activate` purges all
 // caches that don't match, so stale _next/static chunks can't cause ChunkLoadError.
-const CACHE_VERSION = "v3";
-const STATIC_CACHE = `regalia-static-${CACHE_VERSION}`;
+const CACHE_VERSION = "v4";
+const STATIC_CACHE = `taj-static-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE];
 
 // Pre-cache only public, cacheable assets. Auth-gated routes (/captain,

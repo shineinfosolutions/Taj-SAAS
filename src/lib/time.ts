@@ -4,23 +4,55 @@
 // Override with APP_TZ env if the venue isn't in India.
 export const APP_TZ = process.env.APP_TZ || "Asia/Kolkata";
 
-// Minutes `tz` is ahead of UTC at the given instant (handles DST for zones that
-// have it; India does not). Used to convert a local wall-clock day to a UTC range.
-function tzOffsetMinutes(at: Date, tz: string): number {
-  const local = new Date(at.toLocaleString("en-US", { timeZone: tz }));
-  return Math.round((local.getTime() - at.getTime()) / 60000);
+// Compute timezone offset in minutes for a given instant in `tz` using Intl
+export function getTimezoneOffsetMinutes(date: Date, tz: string = APP_TZ): number {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const getPart = (type: string) =>
+    parseInt(parts.find((p) => p.type === type)?.value || "0", 10);
+
+  const year = getPart("year");
+  const month = getPart("month") - 1;
+  const day = getPart("day");
+  const rawHour = getPart("hour");
+  const hour = rawHour === 24 ? 0 : rawHour;
+  const minute = getPart("minute");
+  const second = getPart("second");
+
+  const targetUtcMs = Date.UTC(year, month, day, hour, minute, second);
+  return Math.round((targetUtcMs - date.getTime()) / 60000);
 }
 
 // "YYYY-MM-DD" in the app timezone for a given instant (default: now).
 export function todayInTz(tz: string = APP_TZ, at: Date = new Date()): string {
-  return at.toLocaleDateString("en-CA", { timeZone: tz }); // en-CA → ISO-ish
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(at);
 }
 
 // UTC instant for 00:00:00 of the given local day (`YYYY-MM-DD`) in `tz`.
 export function startOfDayTz(ymd: string, tz: string = APP_TZ): Date {
-  const asUtcMidnight = new Date(`${ymd}T00:00:00.000Z`);
-  const off = tzOffsetMinutes(asUtcMidnight, tz);
-  return new Date(asUtcMidnight.getTime() - off * 60000);
+  const parts = ymd.split("-").map(Number);
+  const year = parts[0];
+  const month = parts[1];
+  const day = parts[2];
+  const approxUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+  const offsetMinutes = getTimezoneOffsetMinutes(approxUtc, tz);
+  return new Date(approxUtc.getTime() - offsetMinutes * 60000);
 }
 
 // UTC instant for the END of the given local day (23:59:59.999) in `tz`.

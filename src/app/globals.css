@@ -5,14 +5,26 @@
 @custom-variant dark (&:is(.dark *));
 @plugin "daisyui" {
   themes:
-    dark --default,
-    light;
+    light --default,
+    dark;
 }
 
-/* ── Override DaisyUI dark theme — brand orange primary ─────────────────── */
+/* ── Royal Champagne Luxury Light Theme ─────────────────── */
+[data-theme="light"], :root {
+  --color-primary: #d97706; /* Champagne Gold / Royal Amber */
+  --color-primary-content: #ffffff;
+  --color-secondary: #f3f0e9;
+  --color-secondary-content: #1e293b;
+  --color-base-100: #faf9f6; /* Pearl Warm Linen Canvas */
+  --color-base-200: #ffffff; /* Crisp White Raised Surface */
+  --color-base-300: #f1ede4; /* Warm Muted Inset */
+  --color-base-content: #0f172a; /* Deep Slate Obsidian Typography */
+}
+
+/* ── Dark theme fallback ─────────────────── */
 [data-theme="dark"] {
   --color-primary: oklch(0.72 0.19 45); /* #f97316 orange */
-  --color-primary-content: oklch(0.1 0 0); /* near-black on orange */
+  --color-primary-content: oklch(0.1 0 0);
   --color-secondary: oklch(0.28 0 0);
   --color-secondary-content: oklch(0.9 0 0);
   --color-base-100: oklch(0.145 0 0);

@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, forwardRef } from "react";
 import HTMLFlipBook from "react-pageflip";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart, RotateCcw, Sparkles, BellRing } from "lucide-react";
+import { ShoppingCart, RotateCcw, Sparkles, BellRing, X } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { menuThemeVars } from "@/lib/menu-theme";
 import CoverPage from "./CoverPage";
@@ -16,6 +16,8 @@ import TabletCartPanel from "./TabletCartPanel";
 import TabletFloatingButtons from "./TabletFloatingButtons";
 import TabletOnboardingWizard from "./TabletOnboardingWizard";
 import TabletVideoModal from "./TabletVideoModal";
+import { useFlyToCartStore } from "@/store/flyToCart";
+import FlyToCartOverlay from "@/components/menu/FlyToCartOverlay";
 import type { IBranding, ILocation, MenuMode } from "@/types";
 import type { FlipbookPageData } from "@/app/menu/page";
 
@@ -38,12 +40,11 @@ const FlipPage = forwardRef<
     ref={ref}
     className={`overflow-hidden ${className}`}
     style={{
-      background: "#0f0f0f",
-      // Subtle page-edge gradient on the right side for depth
+      background: "#FAF9F6",
       backgroundImage:
-        "linear-gradient(to right, #141414 0%, #0f0f0f 4%, #0f0f0f 96%, #0a0a0a 100%)",
+        "linear-gradient(to right, #EDE4D8 0%, #FAF9F6 3.5%, #FAF9F6 96.5%, #EDE4D8 100%)",
       boxShadow:
-        "inset -4px 0 12px rgba(0,0,0,0.6), inset 4px 0 8px rgba(0,0,0,0.4)",
+        "inset -2px 0 8px rgba(217,119,6,0.05), inset 2px 0 8px rgba(217,119,6,0.05)",
     }}
   >
     {children}
@@ -66,28 +67,48 @@ export default function TabletMenuShell({
   const [isFlipping, setIsFlipping] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 550, height: 780 });
   const [flipbookReady, setFlipbookReady] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<ILocation | null>(location);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const [tablesList, setTablesList] = useState<ILocation[]>([]);
   const { totalItems, setLocation } = useCartStore();
 
   useEffect(() => {
-    if (location) setLocation(location.code, location.label);
-  }, [location, setLocation]);
+    fetch("/api/locations?type=table")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setTablesList(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    const update = () => {
-      // Each page = exactly half screen width; height = full screen height
-      const w = Math.floor(window.innerWidth / 2);
-      const h = window.innerHeight;
-      setDimensions({ width: w, height: h });
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    if (location) {
+      setCurrentLocation(location);
+      setLocation(location.code, location.label);
+    }
+  }, [location, setLocation]);
+
+  const updateDimensions = () => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const pageWidth = Math.floor(vw / 2);
+    setDimensions({ width: pageWidth, height: vh });
+  };
+
+  useEffect(() => {
+    updateDimensions();
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
   const onFlip = (e: { data: number }) => {
     setCurrentPage(e.data);
+    setIsFlipping(false);
     if (!flipbookReady) setFlipbookReady(true);
   };
+
   const goPrev = () => flipBookRef.current?.pageFlip().flipPrev();
   const goNext = () => flipBookRef.current?.pageFlip().flipNext();
   const goToPage = (n: number) => flipBookRef.current?.pageFlip().turnToPage(n);
@@ -102,68 +123,48 @@ export default function TabletMenuShell({
   }, []);
 
   const cartCount = totalItems();
+  const [cartBumping, setCartBumping] = useState(false);
+  const prevCount = useRef(cartCount);
 
-  // Accent-derived spine colours (brand-aware via --menu-accent)
-  const mix = (pct: number) =>
-    `color-mix(in srgb, var(--menu-accent) ${pct}%, transparent)`;
+  useEffect(() => {
+    if (cartCount > prevCount.current) {
+      setCartBumping(true);
+      const t = setTimeout(() => setCartBumping(false), 450);
+      return () => clearTimeout(t);
+    }
+    prevCount.current = cartCount;
+  }, [cartCount]);
+
+  const themeVars = menuThemeVars(branding);
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden"
+      className="relative w-screen h-screen overflow-hidden select-none bg-[#FAF9F6] text-slate-900"
       style={{
-        ...menuThemeVars(branding),
-        background:
-          "radial-gradient(120% 60% at 50% 0%, #14110d 0%, #080808 60%)",
-        overscrollBehavior: "none",
+        ...themeVars,
         touchAction: "pan-x",
       }}
-      data-theme="dark"
+      tabIndex={0}
+      aria-label="Interactive Restaurant Menu Flipbook"
     >
-      {/* ── Flipbook loading skeleton ─────────────────────────────── */}
-      {!flipbookReady && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#080808]">
-          <div className="flex gap-4 w-full h-full p-4 animate-pulse">
-            <div className="flex-1 rounded-2xl bg-white/5" />
-            <div className="flex-1 rounded-2xl bg-white/5" />
-          </div>
-          <div className="absolute flex flex-col items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full animate-spin"
-              style={{
-                border: "2px solid var(--menu-accent-border)",
-                borderTopColor: "var(--menu-accent)",
-              }}
-            />
-            <p
-              className="text-sm font-medium tracking-widest uppercase"
-              style={{ color: "var(--menu-accent-dim)" }}
-            >
-              Loading Menu…
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Centre spine — above pages but hidden during flip ────────── */}
+      {/* ── Visual Centre Spine (Hides instantly during page flip) ─────────── */}
       <div
-        className="pointer-events-none absolute inset-y-0"
+        className={`pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 transition-opacity duration-150 ${
+          isFlipping ? "opacity-0" : "opacity-100"
+        }`}
         style={{
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 60,
+          width: 80,
           zIndex: 3,
-          // Hide on cover spread (pages 0-1) and during flip
-          opacity: currentPage <= 1 || isFlipping ? 0 : 1,
-          transition: "opacity 0.25s ease",
         }}
+        aria-hidden="true"
       >
         {/* Left-side depth shadow (falls onto left page) */}
         <div
           className="absolute inset-y-0"
           style={{
             right: "50%",
-            width: 40,
-            background: `linear-gradient(to left, rgba(0,0,0,0.55) 0%, ${mix(4)} 40%, transparent 100%)`,
+            width: 36,
+            background: "linear-gradient(to left, rgba(217,119,6,0.08) 0%, rgba(180,83,9,0.03) 45%, transparent 100%)",
           }}
         />
         {/* Right-side depth shadow (falls onto right page) */}
@@ -171,65 +172,41 @@ export default function TabletMenuShell({
           className="absolute inset-y-0"
           style={{
             left: "50%",
-            width: 40,
-            background: `linear-gradient(to right, rgba(0,0,0,0.55) 0%, ${mix(4)} 40%, transparent 100%)`,
+            width: 36,
+            background: "linear-gradient(to right, rgba(217,119,6,0.08) 0%, rgba(180,83,9,0.03) 45%, transparent 100%)",
           }}
         />
-        {/* Wide accent ambient glow */}
+        {/* Wide accent ambient warm glow */}
         <div
           className="absolute inset-y-0"
           style={{
             left: "50%",
             transform: "translateX(-50%)",
-            width: 36,
-            background: `radial-gradient(ellipse 18px 80% at 50% 50%, ${mix(22)} 0%, ${mix(6)} 60%, transparent 100%)`,
+            width: 30,
+            background: "radial-gradient(ellipse 15px 80% at 50% 50%, rgba(245,158,11,0.18) 0%, rgba(217,119,6,0.05) 60%, transparent 100%)",
           }}
         />
-        {/* Hard spine line */}
+        {/* Hard spine stitch line in Royal Gold */}
         <div
           className="absolute inset-y-0"
           style={{
             left: "50%",
             transform: "translateX(-50%)",
             width: 1.5,
-            background: `linear-gradient(to bottom, transparent 0%, ${mix(12)} 6%, ${mix(60)} 25%, ${mix(85)} 50%, ${mix(60)} 75%, ${mix(12)} 94%, transparent 100%)`,
+            background: "linear-gradient(to bottom, transparent 0%, rgba(217,119,6,0.25) 8%, rgba(217,119,6,0.85) 50%, rgba(217,119,6,0.25) 92%, transparent 100%)",
           }}
         />
-        {/* Centre diamond */}
+        {/* Centre glowing Amber Jewel */}
         <div
           className="absolute left-1/2"
           style={{
             top: "50%",
             transform: "translate(-50%, -50%) rotate(45deg)",
-            width: 8,
-            height: 8,
-            background:
-              "linear-gradient(135deg, color-mix(in srgb, var(--menu-accent) 65%, white), var(--menu-accent))",
-            boxShadow: `0 0 12px 4px ${mix(70)}, 0 0 24px 8px ${mix(25)}`,
-          }}
-        />
-        {/* Top ornament */}
-        <div
-          className="absolute left-1/2"
-          style={{
-            top: "7%",
-            transform: "translate(-50%, -50%) rotate(45deg)",
-            width: 4,
-            height: 4,
-            background: "var(--menu-accent)",
-            boxShadow: `0 0 6px 2px ${mix(50)}`,
-          }}
-        />
-        {/* Bottom ornament */}
-        <div
-          className="absolute left-1/2"
-          style={{
-            top: "93%",
-            transform: "translate(-50%, -50%) rotate(45deg)",
-            width: 4,
-            height: 4,
-            background: "var(--menu-accent)",
-            boxShadow: `0 0 6px 2px ${mix(50)}`,
+            width: 9,
+            height: 9,
+            background: "linear-gradient(135deg, #fef3c7 0%, #f59e0b 50%, #d97706 100%)",
+            border: "1px solid #fde68a",
+            boxShadow: "0 0 10px 2px rgba(217,119,6,0.5), 0 0 20px 4px rgba(245,158,11,0.25)",
           }}
         />
       </div>
@@ -253,14 +230,14 @@ export default function TabletMenuShell({
           usePortrait={false}
           startZIndex={0}
           autoSize={false}
-          maxShadowOpacity={0.8}
+          maxShadowOpacity={0.25}
           showCover={false}
           mobileScrollSupport={false}
           onFlip={onFlip}
           onInit={() => setFlipbookReady(true)}
-          onChangeState={(e: { data: string }) =>
-            setIsFlipping(e.data === "flipping" || e.data === "user_fold")
-          }
+          onChangeState={(e: { data: string }) => {
+            setIsFlipping(e.data === "flipping" || e.data === "user_fold" || e.data === "fold_corner");
+          }}
           className="flipbook-shadow"
           style={{}}
           startPage={0}
@@ -305,15 +282,15 @@ export default function TabletMenuShell({
                   items={page.items}
                   chunkIndex={page.chunkIndex}
                   totalChunks={page.totalChunks}
-                  isRoom={isRoom}
+                  isRoom={true}
                   width={dimensions.width}
                   height={dimensions.height}
                   logoUrl={branding?.logoUrl}
                 />
               )}
               {page.type === "blank" && (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-white/10 text-6xl font-playfair">
+                <div className="w-full h-full flex items-center justify-center bg-[#FAF9F6]">
+                  <span className="text-amber-800/20 text-6xl font-playfair">
                     ✦
                   </span>
                 </div>
@@ -331,42 +308,68 @@ export default function TabletMenuShell({
         </HTMLFlipBook>
       </div>
 
-      {/* ── Top gradient vignette (UI chrome readability) ─────────────── */}
+      {/* ── Top subtle vignette ─────────────── */}
       <div
         className="pointer-events-none absolute top-0 left-0 right-0 h-16 z-10"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)",
+            "linear-gradient(to bottom, rgba(0,0,0,0.06), transparent)",
         }}
       />
 
-      {/* ── Bottom gradient vignette ──────────────────────────────────── */}
+      {/* ── Bottom subtle vignette ──────────────────────────────────── */}
       <div
         className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 z-10"
         style={{
-          background: "linear-gradient(to top, rgba(0,0,0,0.65), transparent)",
+          background: "linear-gradient(to top, rgba(0,0,0,0.06), transparent)",
         }}
       />
 
-      {/* ── Table mode instruction banner ────────────────────────────── */}
-      {mode === "table" && (
-        <div
-          className="pointer-events-none absolute top-9 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full text-[11px] text-center whitespace-nowrap inline-flex items-center gap-1"
-          style={{
-            background: "rgba(0,0,0,0.5)",
-            color: "var(--menu-accent-dim)",
-            border: "1px solid var(--menu-accent-border)",
-          }}
-        >
-          Your captain will take your order · Tap
-          <BellRing
-            className="inline w-3 h-3"
-            style={{ color: "var(--menu-accent)" }}
-            aria-hidden="true"
-          />
-          to call
-        </div>
-      )}
+      {/* ── Top-left Table selector button (Clickable to change table) ── */}
+      {(() => {
+        const currentTableDisplay = currentLocation
+          ? currentLocation.label.trim().toLowerCase().startsWith("table")
+            ? currentLocation.label.trim()
+            : `Table ${currentLocation.label.trim()}`
+          : "Select Table";
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="fixed left-3 sm:left-4 flex items-center gap-2"
+            style={{
+              zIndex: 9999,
+              top: "max(0.6rem, env(safe-area-inset-top))",
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.03 }}
+              onClick={() => setTablePickerOpen(true)}
+              className="px-3.5 h-9 rounded-full text-xs font-black flex items-center gap-2 shadow-xs cursor-pointer touch-manipulation transition-all hover:shadow-md active:opacity-80"
+              style={{
+                background: "rgba(255,255,255,0.96)",
+                backdropFilter: "blur(12px)",
+                border: "1.5px solid rgba(217, 119, 6, 0.7)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+              }}
+              title="Click to select or change table number"
+            >
+              <span className="text-slate-950 font-black flex items-center gap-1.5 text-xs sm:text-sm">
+                🪑 {currentTableDisplay}
+              </span>
+              <span className="text-[10px] text-white bg-amber-500 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
+                Change ▾
+              </span>
+            </motion.button>
+          </motion.div>
+        );
+      })()}
 
       {/* ── Top-right toolbar ────────────────────────────────────────── */}
       <motion.div
@@ -390,15 +393,16 @@ export default function TabletMenuShell({
           onClick={() => window.location.reload()}
           className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer touch-manipulation ${FOCUS_RING}`}
           style={{
-            background: "rgba(0,0,0,0.5)",
-            border: "1px solid var(--menu-border)",
+            background: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(203, 213, 225, 0.8)",
+            boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
           }}
           title="Reload app"
           aria-label="Reload menu"
         >
           <RotateCcw
-            className="w-4 h-4"
-            style={{ color: "rgba(255,255,255,0.6)" }}
+            className="w-4 h-4 text-slate-700"
           />
         </motion.button>
 
@@ -409,46 +413,54 @@ export default function TabletMenuShell({
             flipBookRef.current?.pageFlip().turnToPage(0);
             setWizardOpen(true);
           }}
-          className={`flex items-center gap-1.5 px-3.5 h-11 rounded-full text-xs font-semibold cursor-pointer touch-manipulation ${FOCUS_RING}`}
+          className={`flex items-center gap-1.5 px-3.5 h-11 rounded-full text-xs font-bold cursor-pointer touch-manipulation text-slate-800 ${FOCUS_RING}`}
           style={{
-            background: "rgba(0,0,0,0.5)",
-            border: "1px solid var(--menu-accent-border)",
-            color: "#ffffff",
+            background: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(217, 119, 6, 0.4)",
+            boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
           }}
           aria-label="Show how-to-use guide"
         >
-          <Sparkles className="w-3.5 h-3.5" /> New User
+          <Sparkles className="w-3.5 h-3.5 text-amber-600" /> New User
         </motion.button>
 
-        {/* Cart (room only) */}
-        {isRoom && (
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setCartOpen(true)}
-            className={`w-11 h-11 rounded-full flex items-center justify-center relative cursor-pointer touch-manipulation ${FOCUS_RING}`}
-            style={{
-              background: "rgba(0,0,0,0.5)",
-              border: "1px solid var(--menu-border)",
-            }}
-            aria-label={`Open order${cartCount > 0 ? `, ${cartCount} items` : ""}`}
-          >
-            <ShoppingCart
-              className="w-4 h-4"
-              style={{ color: "rgba(255,255,255,0.7)" }}
-            />
-            {cartCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1 text-[10px] min-w-5 h-5 px-1 rounded-full flex items-center justify-center font-bold tabular-nums"
-                style={{
-                  background: "var(--menu-accent)",
-                  color: "var(--menu-on-accent)",
-                }}
-              >
-                {cartCount}
-              </span>
-            )}
-          </motion.button>
-        )}
+        {/* Cart */}
+        <motion.button
+          id="top-cart-btn"
+          data-cart-btn="true"
+          whileTap={{ scale: 0.9 }}
+          animate={
+            cartBumping
+              ? { scale: [1, 1.35, 0.85, 1.15, 1], rotate: [0, -10, 10, -5, 0] }
+              : { scale: 1, rotate: 0 }
+          }
+          transition={{ duration: 0.4 }}
+          onClick={() => setCartOpen(true)}
+          className={`w-11 h-11 rounded-full flex items-center justify-center relative cursor-pointer touch-manipulation ${FOCUS_RING}`}
+          style={{
+            background: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(12px)",
+            border: "1.5px solid rgba(217, 119, 6, 0.6)",
+            boxShadow: cartBumping ? "0 0 25px rgba(217,119,6,0.5)" : "0 4px 15px rgba(0,0,0,0.06)",
+          }}
+          aria-label={`Open order${cartCount > 0 ? `, ${cartCount} items` : ""}`}
+        >
+          <ShoppingCart
+            className="w-4 h-4 transition-colors"
+            style={{ color: cartBumping ? "#D97706" : "#0F172A" }}
+          />
+          {cartCount > 0 && (
+            <motion.span
+              key={cartCount}
+              initial={{ scale: 0.6 }}
+              animate={{ scale: 1 }}
+              className="absolute -top-1.5 -right-1.5 text-[10px] min-w-5 h-5 px-1 rounded-full flex items-center justify-center font-extrabold tabular-nums shadow-sm bg-amber-500 text-white"
+            >
+              {cartCount}
+            </motion.span>
+          )}
+        </motion.button>
       </motion.div>
 
       {/* ── Flip Controls (bottom-center overlay) ────────────────────── */}
@@ -469,12 +481,114 @@ export default function TabletMenuShell({
 
       {/* ── Cart Panel ───────────────────────────────────────────────── */}
       <AnimatePresence>
-        {isRoom && cartOpen && (
+        {cartOpen && (
           <TabletCartPanel
             branding={branding}
-            location={location}
+            location={currentLocation || location}
             onClose={() => setCartOpen(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Table Picker Modal (Captain / Guest table assignment) ─────── */}
+      <AnimatePresence>
+        {tablePickerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm cursor-pointer"
+              style={{ zIndex: 100000 }}
+              onClick={() => setTablePickerOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl text-slate-900 space-y-4"
+              style={{ zIndex: 100001 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 text-xl shadow-xs">
+                    🪑
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 font-playfair">Select Your Table</h3>
+                    <p className="text-xs text-slate-500 font-medium">Captain / Guest tablet assignment</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setTablePickerOpen(false)}
+                  className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 cursor-pointer"
+                  aria-label="Close table selector"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5 max-h-64 overflow-y-auto p-1">
+                {tablesList.length === 0 ? (
+                  <div className="col-span-3 py-8 text-center text-slate-400 text-xs">
+                    Loading tables…
+                  </div>
+                ) : (
+                  [...tablesList]
+                    .sort((a, b) => {
+                      const getNum = (str: string) => {
+                        const m = str.trim().match(/^(?:Table\s*|T\s*-?\s*)?(\d+)$/i);
+                        return m ? parseInt(m[1], 10) : null;
+                      };
+                      const numA = getNum(a.label);
+                      const numB = getNum(b.label);
+                      if (numA !== null && numB !== null) return numA - numB;
+                      if (numA !== null) return -1;
+                      if (numB !== null) return 1;
+                      return a.label.localeCompare(b.label, undefined, { numeric: true });
+                    })
+                    .map((tbl) => {
+                      const isSelected =
+                        currentLocation?._id === tbl._id ||
+                        currentLocation?.code === tbl.code;
+                      const formattedLabel =
+                        tbl.label.toLowerCase().startsWith("table") || isNaN(Number(tbl.label.trim()))
+                          ? tbl.label
+                          : `Table ${tbl.label}`;
+                      return (
+                        <button
+                          key={tbl._id}
+                          onClick={() => {
+                            setCurrentLocation(tbl);
+                            setLocation(tbl.code, tbl.label);
+                            setTablePickerOpen(false);
+                          }}
+                          className={`p-3 rounded-2xl border text-center transition-all cursor-pointer font-extrabold text-sm flex flex-col items-center gap-1 active:scale-95 ${
+                            isSelected
+                              ? "bg-amber-500 text-white border-amber-500 shadow-md scale-105"
+                              : "bg-slate-50 text-slate-900 border-slate-200 hover:bg-amber-50 hover:border-amber-400"
+                          }`}
+                        >
+                          <span className="text-xl">🪑</span>
+                          <span className="truncate max-w-full px-1">{formattedLabel}</span>
+                          {isSelected && (
+                            <span className="text-[9px] font-extrabold uppercase bg-white text-amber-700 px-1.5 py-0.2 rounded-full shadow-xs">
+                              Active
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                )}
+              </div>
+
+              <p className="text-[11px] text-center text-white/40">
+                Orders placed from this tablet will be tagged to this table for the captain.
+              </p>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -482,7 +596,7 @@ export default function TabletMenuShell({
       <TabletFloatingButtons
         branding={branding}
         mode={mode}
-        locationCode={location?.code ?? null}
+        locationCode={currentLocation?.code || location?.code || null}
       />
 
       {/* ── Onboarding Wizard ────────────────────────────────────────── */}
@@ -494,6 +608,9 @@ export default function TabletMenuShell({
 
       {/* ── Dish Video Player ────────────────────────────────────────── */}
       <TabletVideoModal />
+
+      {/* ── Dynamic Fly-To-Cart Animation Overlay ────────────────────── */}
+      <FlyToCartOverlay />
     </div>
   );
 }

@@ -25,6 +25,7 @@ const STATUS_PILL: Record<string, PillVariant> = {
   delivered: "ghost",
   paid: "success",
   cleared: "ghost",
+  cancelled: "error",
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -66,7 +67,18 @@ async function fetchOrders(f: Filters): Promise<IOrder[]> {
 
 function exportCSV(orders: IOrder[]) {
   const rows = [
-    ["KOT", "Table", "Captain", "Items", "Total", "Status", "Payment", "Date"],
+    [
+      "KOT",
+      "Table",
+      "Captain",
+      "Items",
+      "Total",
+      "Status",
+      "Cancelled By",
+      "Cancel Reason",
+      "Payment",
+      "Date",
+    ],
     ...orders.map((o) => [
       o.kotNumber,
       o.tableLabel,
@@ -74,6 +86,8 @@ function exportCSV(orders: IOrder[]) {
       o.items.length,
       o.total.toFixed(2),
       o.status,
+      o.cancelledByName || o.voidedByName || "",
+      o.cancelReason || o.voidReason || "",
       o.paymentMethod ?? "",
       format(new Date(o.createdAt), "dd MMM yyyy HH:mm"),
     ]),
@@ -100,23 +114,39 @@ function OrderRow({ order }: { order: IOrder }) {
     queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
   return (
     <>
-      <tr
-        className="hover cursor-pointer border-b border-base-300/50"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <td className="w-6 text-base-content/30">
-          {open ? (
-            <ChevronDown className="w-3.5 h-3.5" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5" />
+      <tr className="hover border-b border-base-300">
+        <td>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="btn btn-ghost btn-xs btn-circle"
+            aria-label="Expand order details"
+          >
+            {open ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </td>
+        <td className="font-mono font-bold text-sm">{order.kotNumber}</td>
+        <td>
+          <span className="font-semibold text-sm">{order.tableLabel}</span>
+          {order.customerName && (
+            <p className="text-xs text-base-content/50">
+              {order.customerName}
+            </p>
           )}
         </td>
-        <td className="font-mono text-xs font-bold">{order.kotNumber}</td>
-        <td className="text-sm">{order.tableLabel}</td>
-        <td className="text-sm text-base-content/60">
-          {order.captainName}
+        <td className="text-sm">
+          {order.captainName ? (
+            <span className="badge badge-outline badge-sm">
+              👤 {order.captainName}
+            </span>
+          ) : (
+            <span className="text-base-content/40 text-xs">Direct</span>
+          )}
           {order.placedByRole && order.placedByRole !== "captain" && (
-            <span className="ml-1 text-[10px] uppercase text-warning">
+            <span className="text-[10px] text-base-content/40 block">
               ({order.placedByRole})
             </span>
           )}
@@ -124,9 +154,22 @@ function OrderRow({ order }: { order: IOrder }) {
         <td className="text-sm">{order.items.length} items</td>
         <td className="font-semibold text-sm">{formatPrice(order.total)}</td>
         <td>
-          <span className={pillCls(STATUS_PILL[order.status] ?? "ghost")}>
-            {order.status}
-          </span>
+          {order.status === "cancelled" ? (
+            <div className="flex flex-col gap-0.5">
+              <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-black bg-rose-500/15 text-rose-600 border border-rose-500/30">
+                🚫 Cancelled
+              </span>
+              {(order.cancelledByName || order.voidedByName) && (
+                <span className="text-[11px] font-extrabold text-rose-700">
+                  By: {order.cancelledByName || order.voidedByName}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className={pillCls(STATUS_PILL[order.status] ?? "ghost")}>
+              {order.status}
+            </span>
+          )}
         </td>
         <td className="text-xs text-base-content/50">
           {order.paymentMethod ? PAYMENT_LABELS[order.paymentMethod] : "—"}
@@ -144,6 +187,25 @@ function OrderRow({ order }: { order: IOrder }) {
                   ⚠️ {order.specialInstructions}
                 </p>
               )}
+
+              {/* Cancellation Record Banner */}
+              {(order.status === "cancelled" || order.cancelReason || order.voidReason) && (
+                <div className="p-3 mb-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 space-y-1">
+                  <p className="font-extrabold text-xs flex items-center gap-1.5 text-rose-900">
+                    🚫 Order Cancellation Details
+                  </p>
+                  <p className="text-xs font-semibold">
+                    <strong>Reason:</strong> {order.cancelReason || order.voidReason || "Not specified"}
+                  </p>
+                  {(order.cancelledByName || order.voidedByName) && (
+                    <p className="text-[11px] text-rose-700 font-medium">
+                      Cancelled by: <strong>{order.cancelledByName || order.voidedByName}</strong> {order.cancelledByRole || order.voidedByRole ? `(${order.cancelledByRole || order.voidedByRole})` : ""}
+                      {order.cancelledAt && ` · at ${format(new Date(order.cancelledAt), "dd MMM yyyy, HH:mm")}`}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <table className="w-full">
                 <thead>
                   <tr className="text-base-content/40 border-b border-base-300">
@@ -198,7 +260,7 @@ function OrderRow({ order }: { order: IOrder }) {
                     : ""}
                 </p>
               )}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap pt-2">
                 <AdminOrderActions order={order} onChanged={refresh} />
                 <KotPrintButton order={order} hotelName={branding?.hotelName} />
               </div>
@@ -244,7 +306,7 @@ export default function OrdersTableClient({
   const filtered = orders.filter((o) => {
     if (
       filters.captainName &&
-      !o.captainName.toLowerCase().includes(filters.captainName.toLowerCase())
+      !(o.captainName ?? "").toLowerCase().includes(filters.captainName.toLowerCase())
     )
       return false;
     if (

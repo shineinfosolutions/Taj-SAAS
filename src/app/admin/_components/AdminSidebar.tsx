@@ -23,6 +23,10 @@ import {
   Boxes,
   CalendarDays,
   FileText,
+  TicketPercent,
+  UserCheck,
+  MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -34,6 +38,7 @@ const NAV_SECTIONS = [
       { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/orders", label: "Orders", icon: ClipboardList },
       { href: "/admin/invoices", label: "Invoices", icon: FileText },
+      { href: "/admin/crm", label: "Customers & CRM", icon: UserCheck },
       { href: "/admin/dayend", label: "Day-end", icon: CalendarDays },
       { href: "/admin/metrics", label: "Metrics", icon: BarChart3 },
     ],
@@ -77,56 +82,56 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-base-300/60">
+    <div className="flex flex-col h-full bg-white">
+      {/* Logo Header */}
+      <div className="px-5 py-4.5 border-b border-slate-200/80 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-linear-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-            <UtensilsCrossed className="w-4 h-4 text-primary-content" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-md shadow-amber-500/25 shrink-0">
+            <UtensilsCrossed className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="font-playfair font-bold text-sm leading-tight tracking-wide">
+            <p className="font-playfair font-black text-sm text-slate-900 leading-tight tracking-tight">
               Taj Restaurant & Cafe
             </p>
-            <p className="text-[10px] text-base-content/40 leading-tight font-medium tracking-widest uppercase">
+            <p className="text-[10px] text-amber-700 font-bold leading-tight tracking-widest uppercase mt-0.5">
               Admin Panel
             </p>
           </div>
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-5">
+      {/* Nav List */}
+      <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-5 [scrollbar-width:thin] [scrollbar-color:rgba(217,119,6,0.2)_transparent]">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label}>
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-base-content/30 px-3 mb-1.5">
+            <p className="text-[10px] font-black tracking-widest uppercase text-amber-900/60 px-3 mb-1.5">
               {section.label}
             </p>
             <div className="flex flex-col gap-0.5">
               {section.items.map(({ href, label, icon: Icon }) => {
                 const active =
-                  pathname === href || pathname.startsWith(href + "/");
+                  pathname === href || (href !== "/admin/dashboard" && pathname.startsWith(href));
                 return (
                   <Link
                     key={href}
                     href={href}
                     onClick={onNavigate}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 group",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-150 group cursor-pointer",
                       active
-                        ? "bg-primary text-primary-content font-semibold shadow-md shadow-primary/20"
-                        : "text-base-content/60 hover:bg-base-300 hover:text-base-content",
+                        ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white font-bold shadow-md shadow-amber-500/25"
+                        : "text-slate-700 font-semibold hover:bg-amber-50/70 hover:text-amber-900",
                     )}
                   >
                     <Icon
                       className={cn(
                         "w-4 h-4 shrink-0 transition-transform group-hover:scale-110",
-                        active && "text-primary-content",
+                        active ? "text-white" : "text-slate-500 group-hover:text-amber-700",
                       )}
                     />
                     <span className="flex-1 leading-none">{label}</span>
                     {active && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary-content/60" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs" />
                     )}
                   </Link>
                 );
@@ -136,17 +141,17 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* Sign Out */}
-      <div className="px-3 pb-4 pt-3 border-t border-base-300/60">
+      {/* Sign Out Footer */}
+      <div className="px-3 pb-4 pt-3 border-t border-slate-200/80 bg-slate-50/60">
         <button
           onClick={() =>
             signOut({ redirect: false }).then(() => {
               window.location.replace("/login");
             })
           }
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-base-content/40 hover:bg-error/10 hover:text-error transition-all duration-150 group"
+          className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 bg-white border border-slate-200/90 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shadow-xs transition-all duration-150 cursor-pointer group"
         >
-          <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          <LogOut className="w-4 h-4 text-slate-500 group-hover:text-rose-600 group-hover:scale-110 transition-transform" />
           <span>Sign Out</span>
         </button>
       </div>
@@ -160,12 +165,12 @@ export default function AdminSidebar() {
   return (
     <>
       {/* Desktop sidebar — hidden below md (768px) */}
-      <aside className="hidden md:flex w-64 shrink-0 h-screen sticky top-0 flex-col bg-base-200 border-r border-base-300/60">
+      <aside className="hidden md:flex w-64 shrink-0 h-screen sticky top-0 flex-col bg-white border-r border-slate-200/80 shadow-xs">
         <SidebarNav />
       </aside>
 
       {/* Mobile top bar + Sheet drawer — visible below md (768px) */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 h-14 bg-base-200/95 backdrop-blur-sm border-b border-base-300/60">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4 h-14 bg-white/95 backdrop-blur-sm border-b border-slate-200/80 shadow-xs">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             render={
@@ -176,25 +181,25 @@ export default function AdminSidebar() {
               />
             }
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-5 h-5 text-slate-700" />
           </SheetTrigger>
           <SheetContent
             side="left"
             showCloseButton={false}
-            className="w-64 p-0 bg-base-200 border-r border-base-300/60"
+            className="w-64 p-0 bg-white border-r border-slate-200/80"
           >
             <SidebarNav onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
 
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-linear-to-br from-primary to-primary/70 flex items-center justify-center shadow-md shadow-primary/20">
-            <UtensilsCrossed className="w-3.5 h-3.5 text-primary-content" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-sm shadow-amber-500/20">
+            <UtensilsCrossed className="w-4 h-4 text-white" />
           </div>
-          <span className="font-playfair font-bold text-sm tracking-wide">
+          <span className="font-playfair font-black text-sm text-slate-900 tracking-tight">
             Taj Restaurant & Cafe
           </span>
-          <span className="text-[10px] text-base-content/40 font-medium tracking-widest uppercase mt-px">
+          <span className="text-[10px] text-amber-700 font-bold tracking-widest uppercase mt-px">
             Admin
           </span>
         </div>

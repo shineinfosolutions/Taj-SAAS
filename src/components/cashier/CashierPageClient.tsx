@@ -16,6 +16,7 @@ import OrdersQueue from "./OrdersQueue";
 import TableStatusGrid from "./TableStatusGrid";
 import CashierNewOrder from "./CashierNewOrder";
 import CashierHistory from "./CashierHistory";
+import CashierInvoices from "./CashierInvoices";
 
 const queryClient = new QueryClient();
 
@@ -27,8 +28,7 @@ export default function CashierPageClient({
   staffName,
 }: CashierPageClientProps) {
   const [mobileTab, setMobileTab] = useState<"billing" | "tables">("billing");
-  const [newOrder, setNewOrder] = useState(false);
-  const [history, setHistory] = useState(false);
+  const [view, setView] = useState<"billing" | "new_order" | "invoices" | "history">("billing");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -43,17 +43,24 @@ export default function CashierPageClient({
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {!newOrder && !history && (
+            {view === "billing" && (
               <>
                 <button
-                  onClick={() => setNewOrder(true)}
+                  onClick={() => setView("new_order")}
                   className="btn btn-success btn-xs gap-1.5"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">New Order</span>
                 </button>
                 <button
-                  onClick={() => setHistory(true)}
+                  onClick={() => setView("invoices")}
+                  className="btn btn-warning btn-xs gap-1.5 font-bold text-black"
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Invoices</span>
+                </button>
+                <button
+                  onClick={() => setView("history")}
                   className="btn btn-ghost btn-xs gap-1.5"
                 >
                   <History className="w-3.5 h-3.5" />
@@ -75,16 +82,20 @@ export default function CashierPageClient({
           </div>
         </header>
 
-        {newOrder ? (
+        {view === "new_order" ? (
           <div className="flex-1 overflow-hidden">
             <CashierNewOrder
               cashierName={staffName}
-              onExit={() => setNewOrder(false)}
+              onExit={() => setView("billing")}
             />
           </div>
-        ) : history ? (
+        ) : view === "invoices" ? (
           <div className="flex-1 overflow-hidden">
-            <CashierHistory onExit={() => setHistory(false)} />
+            <CashierInvoices onExit={() => setView("billing")} />
+          </div>
+        ) : view === "history" ? (
+          <div className="flex-1 overflow-hidden">
+            <CashierHistory onExit={() => setView("billing")} />
           </div>
         ) : (
           <>

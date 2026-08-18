@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type OrderStatus =
+  | "pending_captain"
   | "pending"
   | "preparing"
   | "partially_ready"
@@ -64,9 +65,13 @@ export interface IOrderDoc extends Document {
   kotNumber: string;
   tableId: mongoose.Types.ObjectId;
   tableLabel: string;
-  captainId: mongoose.Types.ObjectId;
-  captainName: string;
-  placedByRole?: "captain" | "cashier" | "admin"; // who actually created the order
+  captainId?: mongoose.Types.ObjectId;
+  captainName?: string;
+  placedByRole?: "customer" | "captain" | "cashier" | "admin"; // who actually created the order
+  isCaptainConfirmed?: boolean;
+  confirmedByCaptainId?: mongoose.Types.ObjectId;
+  confirmedByCaptainName?: string;
+  confirmedAt?: Date;
   status: OrderStatus;
   items: IOrderItemDoc[];
   specialInstructions?: string;
@@ -87,10 +92,26 @@ export interface IOrderDoc extends Document {
   paymentAmount?: number;
   splitPayment?: ISplitPaymentEntry[];
   cashierId?: mongoose.Types.ObjectId;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerTier?: string;
+  isCustomerMarried?: boolean;
+  customerDob?: Date;
+  customerAnniversary?: Date;
+  voucherCode?: string;
+  voucherDiscount?: number;
   paidAt?: Date;
   clearedAt?: Date;
   voidReason?: string; // set when a table is freed without payment (no-show/walkout)
   voidedBy?: mongoose.Types.ObjectId;
+  voidedByName?: string;
+  voidedByRole?: string;
+  cancelReason?: string;
+  cancelledBy?: mongoose.Types.ObjectId;
+  cancelledByName?: string;
+  cancelledByRole?: string;
+  cancelledAt?: Date;
   transferredFrom?: string; // previous tableLabel when order moved between tables
   reopenReason?: string; // set when admin un-clears a paid/cleared order
   reopenedBy?: mongoose.Types.ObjectId;
@@ -161,15 +182,21 @@ const OrderSchema = new Schema<IOrderDoc>(
     kotNumber: { type: String, required: true },
     tableId: { type: Schema.Types.ObjectId, ref: "Location", required: true },
     tableLabel: { type: String, required: true },
-    captainId: { type: Schema.Types.ObjectId, ref: "Staff", required: true },
-    captainName: { type: String, required: true },
+    captainId: { type: Schema.Types.ObjectId, ref: "Staff" },
+    captainName: { type: String },
     placedByRole: {
       type: String,
-      enum: ["captain", "cashier", "admin"],
+      enum: ["customer", "captain", "cashier", "admin"],
+      default: "captain",
     },
+    isCaptainConfirmed: { type: Boolean, default: true },
+    confirmedByCaptainId: { type: Schema.Types.ObjectId, ref: "Staff" },
+    confirmedByCaptainName: { type: String },
+    confirmedAt: { type: Date },
     status: {
       type: String,
       enum: [
+        "pending_captain",
         "pending",
         "preparing",
         "partially_ready",
@@ -213,10 +240,26 @@ const OrderSchema = new Schema<IOrderDoc>(
       ],
     },
     cashierId: { type: Schema.Types.ObjectId, ref: "Staff" },
+    customerName: { type: String, trim: true },
+    customerPhone: { type: String, trim: true, index: true },
+    customerEmail: { type: String, trim: true },
+    customerTier: { type: String },
+    isCustomerMarried: { type: Boolean },
+    customerDob: { type: Date },
+    customerAnniversary: { type: Date },
+    voucherCode: { type: String, uppercase: true, trim: true },
+    voucherDiscount: { type: Number, default: 0 },
     paidAt: { type: Date },
     clearedAt: { type: Date },
     voidReason: { type: String },
     voidedBy: { type: Schema.Types.ObjectId, ref: "Staff" },
+    voidedByName: { type: String },
+    voidedByRole: { type: String },
+    cancelReason: { type: String },
+    cancelledBy: { type: Schema.Types.ObjectId, ref: "Staff" },
+    cancelledByName: { type: String },
+    cancelledByRole: { type: String },
+    cancelledAt: { type: Date },
     transferredFrom: { type: String },
     reopenReason: { type: String },
     reopenedBy: { type: Schema.Types.ObjectId, ref: "Staff" },
@@ -244,8 +287,10 @@ OrderSchema.index({ createdAt: -1 });
 OrderSchema.index({ kotDate: 1, kotNumber: 1 }, { unique: true, sparse: true });
 // Print queue: agent polls for unprinted KOTs newest-first
 OrderSchema.index({ kotPrinted: 1, createdAt: -1 });
-// Bill queue: agent polls for requested-but-unprinted bills
-OrderSchema.index({ billPrintRequested: 1, billPrinted: 1 });
+// Force schema reload in development / hot reload
+if (mongoose.models.Order) {
+  delete (mongoose.models as Record<string, unknown>).Order;
+}
 
 const Order: Model<IOrderDoc> =
   mongoose.models.Order || mongoose.model<IOrderDoc>("Order", OrderSchema);

@@ -26,27 +26,44 @@ export default Counter;
  *   can bootstrap from the correct starting point on its first call of the day.
  */
 export async function nextDailyKotSeq(
-  existingTodayCount: number,
+  existingTodayCount: number = 0,
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
   const key = `kot:${today}`;
+  const safeCount = typeof existingTodayCount === "number" && Number.isFinite(existingTodayCount)
+    ? Math.max(0, existingTodayCount)
+    : 0;
 
-  // Use the native MongoDB driver's findOneAndUpdate so we can pass an
-  // aggregation pipeline (needed for $ifNull to seed the counter correctly
-  // on first use each day). Mongoose's own findOneAndUpdate does not support
-  // pipeline arrays without extra gymnastics.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const collection = Counter.collection as any;
-  const result = await collection.findOneAndUpdate(
-    { _id: key },
-    [
-      {
-        $set: {
-          seq: { $add: [{ $ifNull: ["$seq", existingTodayCount] }, 1] },
+  try {
+    // Use the native MongoDB driver's findOneAndUpdate so we can pass an
+    // aggregation pipeline (needed for $ifNull to seed the counter correctly
+    // on first use each day).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const collection = Counter.collection as any;
+    const result = await collection.findOneAndUpdate(
+      { _id: key },
+      [
+        {
+          $set: {
+            seq: { $add: [{ $ifNull: ["$seq", safeCount] }, 1] },
+          },
         },
-      },
-    ],
-    { upsert: true, returnDocument: "after" },
+      ],
+      { upsert: true, returnDocument: "after" },
+    );
+    const seq = (result as unknown as { seq?: number })?.seq;
+    if (typeof seq === "number" && Number.isFinite(seq) && seq > 0) {
+      return seq;
+    }
+  } catch (err) {
+    console.warn("Pipeline counter increment failed, falling back to $inc:", err);
+  }
+
+  // Fallback to direct $inc
+  const direct = await Counter.findByIdAndUpdate(
+    key,
+    { $inc: { seq: 1 } },
+    { upsert: true, new: true },
   );
-  return (result as unknown as { seq: number }).seq;
+  return direct?.seq || 1;
 }

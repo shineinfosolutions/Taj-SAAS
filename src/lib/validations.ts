@@ -163,7 +163,18 @@ export const StaffSchema = z.object({
     .min(6, "Password must be at least 6 characters")
     .max(72)
     .optional(),
-  role: z.enum(["captain", "kitchen", "cashier", "lead_manager"]),
+  role: z.enum([
+    "captain",
+    "kitchen",
+    "cashier",
+    "lead_manager",
+    "inventory_manager",
+  ]),
+  pin: z
+    .string()
+    .regex(/^\d{4,6}$/, "PIN must be 4–6 digits")
+    .optional()
+    .or(z.literal("")),
   phone: z.string().max(15).optional().or(z.literal("")),
   isActive: z.boolean().default(true),
 });
@@ -173,6 +184,11 @@ export const StaffUpdateSchema = StaffSchema.extend({
     .string()
     .min(6, "Password must be at least 6 characters")
     .max(72)
+    .optional()
+    .or(z.literal("")),
+  pin: z
+    .string()
+    .regex(/^\d{4,6}$/, "PIN must be 4–6 digits")
     .optional()
     .or(z.literal("")),
 });

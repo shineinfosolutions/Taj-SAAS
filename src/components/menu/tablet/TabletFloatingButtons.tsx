@@ -56,68 +56,64 @@ export default function TabletFloatingButtons({
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -40 }}
+      initial={{ opacity: 0, x: -30 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 1.2, type: "spring", stiffness: 200, damping: 20 }}
-      className="fixed bottom-8 left-6 flex flex-col gap-3 z-20"
+      transition={{ delay: 1.0, type: "spring", stiffness: 200, damping: 20 }}
+      className="fixed bottom-3 left-3 flex items-center gap-2"
+      style={{ zIndex: 9999 }}
     >
       {showCaptainCall && (
-        <div className="relative">
+        <div className="flex items-center gap-2">
           <motion.button
             whileTap={{ scale: 0.88 }}
-            whileHover={{ scale: 1.08 }}
+            whileHover={{ scale: 1.05 }}
             onClick={handleCallCaptain}
             disabled={callState !== "idle"}
-            className="relative w-14 h-14 rounded-full shadow-2xl border-none flex items-center justify-center transition-all cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="w-11 h-11 rounded-full shadow-xl border-none flex items-center justify-center transition-all cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
             style={{
               background:
                 callState === "sent"
                   ? "#16a34a"
                   : callState === "error"
                     ? "#dc2626"
-                    : "var(--menu-accent)",
+                    : "#D97706",
               boxShadow:
                 callState === "sent"
-                  ? "0 0 20px rgba(22,163,74,0.5)"
-                  : "0 0 20px var(--menu-accent-glow)",
+                  ? "0 0 15px rgba(22,163,74,0.6)"
+                  : "0 4px 15px rgba(217,119,6,0.4)",
             }}
-            title={
-              callState === "sent"
-                ? "Captain is on the way!"
-                : callState === "calling"
-                  ? "Alerting captain…"
-                  : "Call Captain"
-            }
+            title="Call Captain"
             aria-label="Call Captain"
           >
             {/* Pulse ring when calling */}
             {callState === "calling" && (
               <motion.span
                 className="absolute inset-0 rounded-full"
-                style={{ border: "2px solid var(--menu-accent)" }}
-                animate={{ scale: [1, 1.8], opacity: [0.8, 0] }}
+                style={{ border: "2px solid #D97706" }}
+                animate={{ scale: [1, 1.6], opacity: [0.8, 0] }}
                 transition={{ repeat: Infinity, duration: 1, ease: "easeOut" }}
               />
             )}
             {callState === "sent" ? (
-              <CheckCircle className="w-6 h-6 text-white" />
+              <CheckCircle className="w-5 h-5 text-white" />
             ) : callState === "error" ? (
-              <AlertCircle className="w-6 h-6 text-white" />
+              <AlertCircle className="w-5 h-5 text-white" />
             ) : (
               <BellRing
-                className="w-6 h-6"
-                style={{ color: "var(--menu-on-accent)" }}
+                className="w-5 h-5 text-white"
               />
             )}
           </motion.button>
 
           {/* Label */}
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.6 }}
-            className="absolute left-16 bottom-3 text-xs font-medium whitespace-nowrap select-none"
-            style={{ color: "var(--menu-accent-dim)" }}
+          <span
+            className="px-3 py-1.5 rounded-full text-xs font-extrabold select-none hidden md:inline-block shadow-sm"
+            style={{
+              background: "rgba(255,255,255,0.92)",
+              border: "1px solid rgba(217, 119, 6, 0.4)",
+              color: "#0F172A",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+            }}
           >
             {callState === "sent"
               ? "Captain on the way!"
@@ -126,22 +122,21 @@ export default function TabletFloatingButtons({
                 : callState === "error"
                   ? "Try again"
                   : "Call Captain"}
-          </motion.span>
+          </span>
 
           {/* Toast */}
           {callState === "sent" && (
             <motion.div
-              initial={{ opacity: 0, x: -8, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              className="absolute left-16 bottom-10 text-xs font-medium px-3 py-1.5 rounded-xl shadow-lg whitespace-nowrap inline-flex items-center gap-1"
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className="absolute left-0 bottom-14 text-xs font-medium px-3 py-1.5 rounded-xl shadow-2xl whitespace-nowrap inline-flex items-center gap-1.5"
               style={{
-                background: "rgba(22,163,74,0.15)",
-                border: "1px solid rgba(22,163,74,0.4)",
-                color: "#4ade80",
+                background: "rgba(22,163,74,0.95)",
+                border: "1px solid rgba(255,255,255,0.3)",
+                color: "#ffffff",
               }}
             >
-              <CheckCircle className="w-3.5 h-3.5" /> All captains have been
-              alerted!
+              <CheckCircle className="w-4 h-4" /> All captains alerted!
             </motion.div>
           )}
         </div>

@@ -68,6 +68,6 @@ export const useCartStore = create<CartStore>()(
           0,
         ),
     }),
-    { name: "regalia-cart" },
+    { name: "taj-cart" },
   ),
 );

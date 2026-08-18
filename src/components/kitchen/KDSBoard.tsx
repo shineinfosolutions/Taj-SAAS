@@ -41,7 +41,7 @@ export default function KDSBoard() {
     );
     const msgs = activeNew.map((o) => {
       const itemCount = o.items.reduce((s, i) => s + i.quantity, 0);
-      return `🆕 ${o.kotNumber} · ${o.tableLabel} · ${itemCount} item${itemCount !== 1 ? "s" : ""} · ₹${o.total}`;
+      return `🆕 ${o.kotNumber} · ${o.tableLabel} · ${itemCount} item${itemCount !== 1 ? "s" : ""}`;
     });
     // defer to avoid synchronous setState-in-effect warning
     const t1 = setTimeout(() => setTickerItems(msgs), 0);

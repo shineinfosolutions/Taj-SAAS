@@ -10,16 +10,16 @@
 import { cn } from "@/lib/utils";
 
 export const PILL_VARIANTS = {
-  info: "bg-info/15 text-info border-info/30",
-  primary: "bg-primary/15 text-primary border-primary/30",
-  accent: "bg-accent/15 text-accent border-accent/30",
-  warning: "bg-warning/15 text-warning border-warning/30",
-  secondary: "bg-secondary/15 text-secondary border-secondary/30",
-  success: "bg-success/15 text-success border-success/30",
-  error: "bg-error/15 text-error border-error/30",
-  ghost: "bg-base-300/50 text-base-content/40 border-base-300",
-  neutral: "bg-base-content/10 text-base-content/60 border-base-content/20",
-  outline: "bg-transparent text-base-content/50 border-base-content/25",
+  info: "bg-sky-50 text-sky-800 border-sky-300 font-bold",
+  primary: "bg-indigo-50 text-indigo-800 border-indigo-300 font-bold",
+  accent: "bg-amber-50 text-amber-900 border-amber-300 font-bold",
+  warning: "bg-orange-50 text-orange-900 border-orange-300 font-bold",
+  secondary: "bg-purple-50 text-purple-900 border-purple-300 font-bold",
+  success: "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold",
+  error: "bg-rose-50 text-rose-900 border-rose-300 font-bold",
+  ghost: "bg-slate-100 text-slate-700 border-slate-300 font-medium",
+  neutral: "bg-slate-100 text-slate-800 border-slate-300 font-bold",
+  outline: "bg-white text-slate-700 border-slate-300 font-semibold",
 } as const;
 
 export type PillVariant = keyof typeof PILL_VARIANTS;

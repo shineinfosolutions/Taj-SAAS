@@ -7,13 +7,14 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import PWAManifestManager from "@/components/PWAManifestManager";
 import ChunkErrorReload from "@/components/ChunkErrorReload";
 import { cn } from "@/lib/utils";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const viewport: Viewport = {
-  themeColor: "#C9A96E",
+  themeColor: "#FAF9F6",
   width: "device-width",
   initialScale: 1,
   // Never disable zoom — WCAG 1.4.4 / iOS pinch-zoom accessibility.
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Taj Restaurant & Cafe",
   },
   icons: {
@@ -65,9 +66,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="dark"
+      data-theme="light"
       className={cn(
-        "h-full dark",
+        "h-full",
         "antialiased",
         jakarta.variable,
         playfair.variable,
@@ -76,7 +77,8 @@ export default function RootLayout({
         geist.variable,
       )}
     >
-      <body className="min-h-full bg-base-100 text-base-content">
+      <body className="min-h-full bg-[#FAF9F6] text-slate-900 selection:bg-amber-100 selection:text-amber-900">
+        <PWAManifestManager />
         <ChunkErrorReload />
         {children}
         <PWAInstallPrompt />

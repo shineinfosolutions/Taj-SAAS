@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { IBranding } from "@/types";
 
 /** Fallback accent when branding has no colour set (legacy gold). */
-export const DEFAULT_MENU_ACCENT = "#C9A96E";
+export const DEFAULT_MENU_ACCENT = "#D97706";
 
 /** Pick readable on-accent text (black/white) via WCAG relative luminance. */
 function onAccentColor(hex: string): string {
@@ -59,25 +59,19 @@ export function menuThemeVars(
     "--menu-accent-dim": mix(accent, 65),
     "--menu-accent-glow": mix(accent, 35),
 
-    // ── Dark surfaces (theme, not brand) ────────────────────────────
-    // Layered: a soft accent glow band pinned to the very top (hero
-    // ambiance behind the header) over a warm vertical base that settles
-    // into near-black — kills the flat-black look while raising contrast.
-    "--menu-bg": `radial-gradient(140% 380px at 50% 0%, ${mix(accent, 9)} 0%, transparent 100%), linear-gradient(180deg, #15110b 0%, #100f0d 26%, #0b0a09 100%)`,
-    "--menu-bg-solid": "#0f0f0f",
-    "--menu-bg-deep": "#0a0a0a",
-    // Tablet flipbook leaf — warm "dark paper" with a faint accent near the
-    // spine corner. Softer than --menu-bg so it doesn't repeat distractingly
-    // across every page of the book.
-    "--menu-page-bg": `radial-gradient(90% 60% at 0% 0%, ${mix(accent, 6)} 0%, transparent 55%), linear-gradient(165deg, #161109 0%, #100f0d 42%, #0c0b09 100%)`,
-    "--menu-surface": "rgba(255,255,255,0.05)",
-    "--menu-surface-2": "rgba(255,255,255,0.08)",
-    "--menu-border": "rgba(255,255,255,0.09)",
+    // ── Luxury Light Surfaces (Royal Champagne Atelier) ─────────────
+    "--menu-bg": `radial-gradient(140% 380px at 50% 0%, ${mix(accent, 8)} 0%, transparent 100%), linear-gradient(180deg, #FAF9F6 0%, #F5F3EF 50%, #ECE8E1 100%)`,
+    "--menu-bg-solid": "#FAF9F6",
+    "--menu-bg-deep": "#F3F0E9",
+    "--menu-page-bg": `radial-gradient(90% 60% at 0% 0%, ${mix(accent, 6)} 0%, transparent 55%), linear-gradient(165deg, #FFFFFF 0%, #FAF8F5 42%, #F5F1EB 100%)`,
+    "--menu-surface": "rgba(255,255,255,0.92)",
+    "--menu-surface-2": "rgba(245,241,235,0.85)",
+    "--menu-border": "rgba(217,119,6,0.18)",
 
-    // ── Text (contrast-tuned for #0f0f0f → all ≥4.5:1) ──────────────
-    "--menu-text": "#f5f5f5",
-    "--menu-text-muted": "rgba(255,255,255,0.62)",
-    "--menu-text-faint": "rgba(255,255,255,0.45)",
+    // ── Text (contrast-tuned for light canvas → crisp obsidian) ───────
+    "--menu-text": "#0F172A",
+    "--menu-text-muted": "#475569",
+    "--menu-text-faint": "#64748B",
 
     // ── Override DaisyUI + shadcn primary so components brand too ────
     "--color-primary": accent,

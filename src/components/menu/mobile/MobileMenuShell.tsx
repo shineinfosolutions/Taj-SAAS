@@ -14,6 +14,8 @@ import ItemDetailSheet from "./ItemDetailSheet";
 import FoodPlaceholder from "@/components/menu/FoodPlaceholder";
 import LottiePlayer from "@/components/LottiePlayer";
 import { FssaiDot } from "@/components/ui/FssaiDot";
+import { useFlyToCartStore } from "@/store/flyToCart";
+import FlyToCartOverlay from "@/components/menu/FlyToCartOverlay";
 import type {
   IBranding,
   ILocation,
@@ -42,20 +44,24 @@ function AddControl({
   onAdd,
   itemId,
   name,
+  itemImage,
   updateQuantity,
   removeItem,
 }: {
   qty: number;
-  onAdd: () => void;
+  onAdd: (e: React.MouseEvent<HTMLElement>) => void;
   itemId: string;
   name: string;
+  itemImage?: string;
   updateQuantity: (id: string, qty: number) => void;
   removeItem: (id: string) => void;
 }) {
+  const triggerFly = useFlyToCartStore((s) => s.triggerFly);
+
   if (qty === 0) {
     return (
       <button
-        onClick={onAdd}
+        onClick={(e) => onAdd(e)}
         aria-label={`Add ${name} to order`}
         className={`w-full min-h-11 rounded-lg text-xs font-bold tracking-wide cursor-pointer touch-manipulation transition-colors active:opacity-80 ${FOCUS_RING}`}
         style={{
@@ -90,7 +96,10 @@ function AddControl({
         {qty}
       </span>
       <button
-        onClick={() => updateQuantity(itemId, qty + 1)}
+        onClick={(e) => {
+          triggerFly(e.currentTarget, itemImage);
+          updateQuantity(itemId, qty + 1);
+        }}
         aria-label={`Increase ${name} quantity`}
         className={`min-w-11 h-11 flex items-center justify-center font-bold text-lg cursor-pointer touch-manipulation active:opacity-70 ${FOCUS_RING}`}
         style={{ color: "var(--menu-on-accent)" }}
@@ -110,7 +119,7 @@ function ItemCard({
 }: {
   item: IItem;
   isRoom: boolean;
-  onAdd: () => void;
+  onAdd: (e: React.MouseEvent<HTMLElement>) => void;
   onOpen: () => void;
   logoUrl?: string | null;
 }) {
@@ -231,6 +240,7 @@ function ItemCard({
               onAdd={onAdd}
               itemId={item._id}
               name={item.name}
+              itemImage={item.imageUrl}
               updateQuantity={updateQuantity}
               removeItem={removeItem}
             />
@@ -250,7 +260,7 @@ function SearchResultItem({
 }: {
   item: IItem;
   isRoom: boolean;
-  onAdd: () => void;
+  onAdd: (e: React.MouseEvent<HTMLElement>) => void;
   onOpen: () => void;
   logoUrl?: string | null;
 }) {
@@ -312,6 +322,7 @@ function SearchResultItem({
             onAdd={onAdd}
             itemId={item._id}
             name={item.name}
+            itemImage={item.imageUrl}
             updateQuantity={updateQuantity}
             removeItem={removeItem}
           />
@@ -328,6 +339,7 @@ export default function MobileMenuShell({
   mode,
 }: Props) {
   const isRoom = mode === "room";
+  const canOrder = true;
   const reduceMotion = useReducedMotion();
   const [activeCategory, setActiveCategory] = useState(
     categoriesWithItems[0]?._id ?? "",
@@ -339,6 +351,7 @@ export default function MobileMenuShell({
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const tabsRef = useRef<HTMLDivElement>(null);
   const { addItem, totalItems, setLocation } = useCartStore();
+  const triggerFly = useFlyToCartStore((s) => s.triggerFly);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
@@ -407,10 +420,10 @@ export default function MobileMenuShell({
       }}
     >
       <header
-        className="sticky top-0 z-40"
+        className="sticky top-0 z-40 shadow-xs"
         style={{
-          background: "rgba(15,15,15,0.97)",
-          backdropFilter: "blur(12px)",
+          background: "rgba(255,255,255,0.95)",
+          backdropFilter: "blur(16px)",
           borderBottom: "1px solid var(--menu-border)",
           paddingTop: "env(safe-area-inset-top)",
         }}
@@ -428,7 +441,7 @@ export default function MobileMenuShell({
               />
             ) : (
               <div
-                className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-sm font-bold"
+                className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center text-sm font-bold shadow-xs"
                 style={{
                   background: "var(--menu-accent)",
                   color: "var(--menu-on-accent)",
@@ -439,14 +452,14 @@ export default function MobileMenuShell({
             )}
             <div className="min-w-0">
               <p
-                className="font-bold text-sm truncate"
+                className="font-extrabold text-sm truncate text-slate-900 font-playfair"
                 style={{ letterSpacing: "0.01em" }}
               >
                 {restaurantName}
               </p>
               {location && (
-                <p className="text-xs" style={{ color: "var(--menu-text-muted)" }}>
-                  {location.type === "room" ? "Rm" : "Tbl"} {location.label}
+                <p className="text-xs font-bold text-amber-800">
+                  {location.type === "room" ? "Room" : "Table"} {location.label}
                 </p>
               )}
             </div>
@@ -455,32 +468,22 @@ export default function MobileMenuShell({
             <button
               onClick={() => setSearchOpen(true)}
               aria-label="Search the menu"
-              className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-70 ${FOCUS_RING}`}
-              style={{ background: "var(--menu-surface-2)" }}
+              className={`w-10 h-10 rounded-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-70 bg-slate-100 border border-slate-200 text-slate-700 ${FOCUS_RING}`}
             >
-              <Search
-                className="w-4 h-4"
-                style={{ color: "var(--menu-text)" }}
-              />
+              <Search className="w-4 h-4 text-slate-700" />
             </button>
-            {isRoom && (
+            {canOrder && (
               <button
+                id="top-cart-btn"
+                data-cart-btn="true"
                 onClick={() => setCartOpen(true)}
                 aria-label={`Open order${cartCount > 0 ? `, ${cartCount} item${cartCount > 1 ? "s" : ""}` : ""}`}
-                className={`relative w-11 h-11 rounded-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-70 ${FOCUS_RING}`}
-                style={{ background: "var(--menu-surface-2)" }}
+                className={`relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-70 bg-amber-50 border border-amber-300 text-amber-900 shadow-xs ${FOCUS_RING}`}
               >
-                <ShoppingCart
-                  className="w-4 h-4"
-                  style={{ color: "var(--menu-text)" }}
-                />
+                <ShoppingCart className="w-4 h-4 text-amber-700" />
                 {cartCount > 0 && (
                   <span
-                    className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 rounded-full flex items-center justify-center text-[10px] font-bold tabular-nums"
-                    style={{
-                      background: "var(--menu-accent)",
-                      color: "var(--menu-on-accent)",
-                    }}
+                    className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full flex items-center justify-center text-[10px] font-black tabular-nums shadow-sm bg-amber-500 text-white"
                   >
                     {cartCount}
                   </span>
@@ -491,34 +494,19 @@ export default function MobileMenuShell({
         </div>
         {mode === "table" && (
           <div
-            className="mx-4 mb-2 px-3 py-2 rounded-lg text-xs text-center space-y-0.5"
-            style={{
-              background: "var(--menu-accent-soft)",
-              color: "var(--menu-accent)",
-              border: "1px solid var(--menu-accent-border)",
-            }}
+            className="mx-4 mb-2 px-3 py-2 rounded-xl text-xs text-center space-y-0.5 bg-gradient-to-r from-amber-50 to-amber-100/70 border border-amber-300 shadow-xs"
           >
-            <p>Your captain will take your order</p>
-            <p
-              className="inline-flex items-center justify-center gap-1"
-              style={{ color: "var(--menu-accent-dim)" }}
-            >
-              Need help? Tap the
-              <BellRing
-                className="inline w-3.5 h-3.5"
-                style={{ color: "var(--menu-accent)" }}
-                aria-hidden="true"
-              />
-              button to call your captain
+            <p className="font-extrabold text-amber-950">Add dishes to order · Tap Place Order when ready</p>
+            <p className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-amber-800">
+              Captain will come to your table to verify & confirm
             </p>
           </div>
         )}
-        {/* Scroll-spy category jump links — a navigation list, not a tab widget
-            (all sections are visible at once), so use nav + aria-current. */}
+        {/* Scroll-spy category jump links */}
         <nav
           ref={tabsRef}
           aria-label="Menu categories"
-          className="flex gap-1.5 overflow-x-auto px-4 pb-3 scrollbar-none"
+          className="flex gap-2 overflow-x-auto px-4 pb-3 scrollbar-none"
         >
           {categoriesWithItems.map((cat) => {
             const active = activeCategory === cat._id;
@@ -528,21 +516,13 @@ export default function MobileMenuShell({
                 data-cat={cat._id}
                 aria-current={active ? "true" : undefined}
                 onClick={() => scrollToCategory(cat._id)}
-                className={`shrink-0 px-3.5 min-h-9 rounded-full text-xs font-medium transition-all cursor-pointer touch-manipulation ${FOCUS_RING}`}
-                style={
+                className={`shrink-0 px-4 min-h-9 rounded-full text-xs font-bold transition-all cursor-pointer touch-manipulation ${
                   active
-                    ? {
-                        background: "var(--menu-accent)",
-                        color: "var(--menu-on-accent)",
-                        fontWeight: 600,
-                      }
-                    : {
-                        background: "var(--menu-surface-2)",
-                        color: "var(--menu-text-muted)",
-                      }
-                }
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white font-black shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                } ${FOCUS_RING}`}
               >
-                {cat.iconEmoji && <span className="mr-1">{cat.iconEmoji}</span>}
+                {cat.iconEmoji && <span className="mr-1.5">{cat.iconEmoji}</span>}
                 {cat.name}
               </button>
             );
@@ -565,10 +545,8 @@ export default function MobileMenuShell({
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="fixed inset-0 z-50 flex flex-col"
+            className="fixed inset-0 z-50 flex flex-col bg-white/98 backdrop-blur-xl text-slate-900"
             style={{
-              background: "rgba(10,10,10,0.98)",
-              backdropFilter: "blur(16px)",
               paddingTop: "env(safe-area-inset-top)",
             }}
           >
@@ -633,13 +611,14 @@ export default function MobileMenuShell({
                 <SearchResultItem
                   key={item._id}
                   item={item}
-                  isRoom={isRoom}
+                  isRoom={canOrder}
                   logoUrl={branding?.logoUrl}
                   onOpen={() => {
                     setSearchOpen(false);
                     setDetailItem(item);
                   }}
-                  onAdd={() =>
+                  onAdd={(e) => {
+                    triggerFly(e.currentTarget, item.imageUrl);
                     addItem({
                       itemId: item._id,
                       name: item.name,
@@ -648,8 +627,8 @@ export default function MobileMenuShell({
                       quantity: 1,
                       imageUrl: item.imageUrl,
                       isVegetarian: item.isVegetarian,
-                    })
-                  }
+                    });
+                  }}
                 />
               ))}
               {filteredItems?.length === 0 && (
@@ -734,10 +713,11 @@ export default function MobileMenuShell({
                   >
                     <ItemCard
                       item={item}
-                      isRoom={isRoom}
+                      isRoom={canOrder}
                       logoUrl={branding?.logoUrl}
                       onOpen={() => setDetailItem(item)}
-                      onAdd={() =>
+                      onAdd={(e) => {
+                        triggerFly(e.currentTarget, item.imageUrl);
                         addItem({
                           itemId: item._id,
                           name: item.name,
@@ -746,8 +726,8 @@ export default function MobileMenuShell({
                           quantity: 1,
                           imageUrl: item.imageUrl,
                           isVegetarian: item.isVegetarian,
-                        })
-                      }
+                        });
+                      }}
                     />
                   </motion.div>
                 ))}
@@ -757,7 +737,7 @@ export default function MobileMenuShell({
         )}
       </main>
 
-      {isRoom && cartCount > 0 && (
+      {canOrder && cartCount > 0 && (
         <motion.div
           initial={reduceMotion ? false : { y: 80 }}
           animate={{ y: 0 }}
@@ -768,6 +748,8 @@ export default function MobileMenuShell({
           }}
         >
           <button
+            id="bottom-cart-btn"
+            data-cart-btn="true"
             onClick={() => setCartOpen(true)}
             aria-label={`View order, ${cartCount} item${cartCount > 1 ? "s" : ""}`}
             className={`w-full min-h-12 rounded-2xl flex items-center justify-between px-5 font-semibold text-sm cursor-pointer touch-manipulation active:opacity-90 ${FOCUS_RING}`}
@@ -782,13 +764,13 @@ export default function MobileMenuShell({
             >
               {cartCount}
             </span>
-            <span>View Cart</span>
+            <span>View Order & Place</span>
             <ShoppingCart className="w-4 h-4" />
           </button>
         </motion.div>
       )}
 
-      {isRoom && (
+      {canOrder && (
         <CartDrawer
           open={cartOpen}
           onClose={() => setCartOpen(false)}
@@ -798,7 +780,7 @@ export default function MobileMenuShell({
       )}
       <ItemDetailSheet
         item={detailItem}
-        isRoom={isRoom}
+        isRoom={canOrder}
         onClose={() => setDetailItem(null)}
         logoUrl={branding?.logoUrl}
       />
@@ -808,6 +790,7 @@ export default function MobileMenuShell({
         locationCode={location?.code ?? null}
         showScrollTop={showScrollTop}
       />
+      <FlyToCartOverlay />
     </div>
   );
 }

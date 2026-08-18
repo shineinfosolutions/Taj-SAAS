@@ -103,13 +103,14 @@ export function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Format price in INR */
+/** Format price in INR (shows decimals only when paise exist) */
 export function formatPrice(amount: number): string {
+  const hasDecimals = Math.abs(amount % 1) >= 0.005;
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 2,
   }).format(amount);
 }
 
@@ -173,7 +174,9 @@ export function chunkArray<T>(arr: T[], size: number): T[][] {
 
 /** Generate daily KOT number sequence string */
 export function formatKotNumber(seq: number): string {
-  return `KOT-${String(seq).padStart(3, "0")}`;
+  const num = Number(seq);
+  const safeSeq = Number.isFinite(num) && num > 0 ? num : 1;
+  return `KOT-${String(safeSeq).padStart(3, "0")}`;
 }
 
 /** Encode WhatsApp message URL */
@@ -224,9 +227,10 @@ ${itemLines}
 _Sent via Taj Restaurant & Cafe_`;
 }
 
-/** Detect if User-Agent is mobile */
+/** Detect if User-Agent is a small mobile phone (excluding tablets/iPads) */
 export function isMobileUserAgent(ua: string): boolean {
-  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(
-    ua.toLowerCase(),
-  );
+  const s = ua.toLowerCase();
+  // Tablets (iPad, iPad Mini, Android Tablet without 'mobile') should use tablet view
+  if (/ipad|tablet|playbook|silk/i.test(s)) return false;
+  return /iphone|ipod|blackberry|iemobile|opera mini|mobile/i.test(s);
 }

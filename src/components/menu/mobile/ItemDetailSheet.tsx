@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { X, Star } from "lucide-react";
 import { useCartStore } from "@/store/cart";
+import { useFlyToCartStore } from "@/store/flyToCart";
 import { formatPrice } from "@/lib/utils";
 import { FssaiDot } from "@/components/ui/FssaiDot";
 import FoodPlaceholder from "@/components/menu/FoodPlaceholder";
@@ -28,6 +29,7 @@ export default function ItemDetailSheet({
 }: Props) {
   const reduceMotion = useReducedMotion();
   const { items, addItem, updateQuantity, removeItem } = useCartStore();
+  const triggerFly = useFlyToCartStore((s) => s.triggerFly);
   const qty = item
     ? (items.find((i) => i.itemId === item._id)?.quantity ?? 0)
     : 0;
@@ -169,11 +171,12 @@ export default function ItemDetailSheet({
                 </p>
               )}
 
-              {/* Add control (room only) */}
+              {/* Add control */}
               {isRoom &&
                 (qty === 0 ? (
                   <button
-                    onClick={() =>
+                    onClick={(e) => {
+                      triggerFly(e.currentTarget, item.imageUrl);
                       addItem({
                         itemId: item._id,
                         name: item.name,
@@ -182,15 +185,15 @@ export default function ItemDetailSheet({
                         quantity: 1,
                         imageUrl: item.imageUrl,
                         isVegetarian: item.isVegetarian,
-                      })
-                    }
+                      });
+                    }}
                     className="w-full min-h-12 rounded-2xl font-semibold text-sm cursor-pointer touch-manipulation active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
                     style={{
                       background: "var(--menu-accent)",
                       color: "var(--menu-on-accent)",
                     }}
                   >
-                    Add to Order
+                    Add to Order +
                   </button>
                 ) : (
                   <div
@@ -216,7 +219,10 @@ export default function ItemDetailSheet({
                       {qty} in order
                     </span>
                     <button
-                      onClick={() => updateQuantity(item._id, qty + 1)}
+                      onClick={(e) => {
+                        triggerFly(e.currentTarget, item.imageUrl);
+                        updateQuantity(item._id, qty + 1);
+                      }}
                       aria-label="Increase quantity"
                       className="min-w-14 h-12 flex items-center justify-center text-xl font-bold cursor-pointer touch-manipulation active:opacity-70"
                       style={{ color: "var(--menu-on-accent)" }}

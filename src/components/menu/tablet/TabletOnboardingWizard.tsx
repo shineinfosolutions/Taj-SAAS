@@ -10,7 +10,7 @@ import {
 import { ChevronRight, X, Hand, ListChecks, BellRing } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-const STORAGE_KEY = "regalia-tablet-onboarded";
+const STORAGE_KEY = "taj-tablet-onboarded";
 
 interface Step {
   Icon: LucideIcon;

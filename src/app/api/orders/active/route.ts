@@ -14,6 +14,7 @@ export async function GET() {
   await connectDB();
 
   const orders = await Order.find({
+    isCaptainConfirmed: { $ne: false },
     status: {
       $in: [
         "pending",
@@ -23,6 +24,7 @@ export async function GET() {
         "partially_delivered",
         "delivered",
       ],
+      $nin: ["cancelled", "pending_captain"],
     },
   })
     .sort({ createdAt: 1 })

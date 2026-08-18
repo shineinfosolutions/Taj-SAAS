@@ -19,14 +19,17 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
   gstNumber?: string;
   logoUrl?: string;
 }>(function TableReceiptContent({ data, hotelName = "Taj Restaurant & Cafe", gstNumber, logoUrl }, ref) {
-  const items = data.kots.flatMap((k) =>
-    k.items.filter((i) => i.itemStatus !== "cancelled"),
+  const safeKots = data?.kots ?? [];
+  const tableLabel = data?.tableLabel ?? "Table";
+  const items = safeKots.flatMap((k) =>
+    (k.items ?? []).filter((i) => i.itemStatus !== "cancelled"),
   );
-  const subtotal = data.kots.reduce((s, k) => s + (k.subtotal ?? 0), 0);
-  const discount = data.kots.reduce((s, k) => s + (k.discountAmount ?? 0), 0);
-  const tax = data.kots.reduce((s, k) => s + (k.tax ?? 0), 0);
-  const total = data.kots.reduce((s, k) => s + (k.total ?? 0), 0);
-  const paid = data.kots.find((k) => k.paymentMethod)?.paymentMethod;
+  const subtotal = safeKots.reduce((s, k) => s + (k.subtotal ?? 0), 0);
+  const discount = safeKots.reduce((s, k) => s + (k.discountAmount ?? 0), 0);
+  const tax = safeKots.reduce((s, k) => s + (k.tax ?? 0), 0);
+  const total = safeKots.reduce((s, k) => s + (k.total ?? 0), 0);
+  const isSettled = safeKots.length > 0 && safeKots.every((k) => ["paid", "cleared"].includes(k.status));
+  const paymentMethod = safeKots.find((k) => k.paymentMethod)?.paymentMethod;
 
   return (
     <div
@@ -60,7 +63,12 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
         <div style={{ fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
           {hotelName.toUpperCase()}
         </div>
-        <div style={{ fontSize: 11 }}>Tax Invoice</div>
+        <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
+          {isSettled ? "TAX INVOICE" : "TABLE BILL / ESTIMATE"}
+        </div>
+        <div style={{ fontSize: 10, fontWeight: "bold", color: isSettled ? "#000" : "#555" }}>
+          {isSettled ? "[ STATUS: PAID ✅ ]" : "[ STATUS: PENDING ]"}
+        </div>
         {gstNumber && <div style={{ fontSize: 10 }}>GSTIN: {gstNumber}</div>}
         <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
       </div>
@@ -69,7 +77,7 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
         <tbody>
           <tr>
             <td>Table:</td>
-            <td style={{ textAlign: "right" }}>{data.tableLabel}</td>
+            <td style={{ textAlign: "right" }}>{tableLabel}</td>
           </tr>
           <tr>
             <td>Date:</td>
@@ -80,7 +88,7 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
           <tr>
             <td>KOTs:</td>
             <td style={{ textAlign: "right" }}>
-              {data.kots.map((k) => k.kotNumber).join(", ")}
+              {safeKots.map((k) => k.kotNumber).join(", ")}
             </td>
           </tr>
         </tbody>
@@ -154,11 +162,19 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
               ₹{total.toFixed(2)}
             </td>
           </tr>
-          {paid && (
+          {isSettled && paymentMethod && (
             <tr>
-              <td style={{ fontSize: 10 }}>Payment</td>
-              <td style={{ textAlign: "right", fontSize: 10 }}>
-                {paid.replace("_", " ").toUpperCase()}
+              <td style={{ fontSize: 11, fontWeight: "bold" }}>PAYMENT MODE</td>
+              <td style={{ textAlign: "right", fontSize: 11, fontWeight: "bold" }}>
+                {paymentMethod.replace("_", " ").toUpperCase()}
+              </td>
+            </tr>
+          )}
+          {!isSettled && (
+            <tr>
+              <td style={{ fontSize: 10, color: "#666" }}>PAYMENT STATUS</td>
+              <td style={{ textAlign: "right", fontSize: 10, color: "#666", fontWeight: "bold" }}>
+                PENDING
               </td>
             </tr>
           )}
@@ -183,18 +199,20 @@ export function BillPrintButton({
   gstNumber,
   logoUrl,
   label = "Bill",
+  className = "bg-sky-500 hover:bg-sky-400 text-black font-extrabold shadow border-none rounded-xl",
 }: {
   data: ReceiptData;
   hotelName?: string;
   gstNumber?: string;
   logoUrl?: string;
   label?: string;
+  className?: string;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `Bill-${data.tableLabel}`,
+    documentTitle: `Bill-${data?.tableLabel ?? "Table"}`,
     pageStyle: `@page { size: 80mm auto; margin: 0; } @media print { body { margin: 0; } }`,
   });
 
@@ -202,11 +220,11 @@ export function BillPrintButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="btn btn-ghost btn-sm gap-1.5"
+        className={`btn btn-sm gap-1.5 transition-all ${className}`}
         title="Print customer bill"
       >
-        <Printer className="w-4 h-4" />
-        {label}
+        <Printer className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
       </button>
 
       <div style={{ position: "absolute", left: "-9999px", top: 0 }}>

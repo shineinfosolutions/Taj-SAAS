@@ -58,96 +58,108 @@ export default function KOTItem({
 
   const timerBg =
     ttl === "overdue"
-      ? "bg-error/5"
+      ? "bg-error/10 border-l-4 border-error"
       : ttl === "warning"
-        ? "bg-amber-500/5"
+        ? "bg-amber-500/10 border-l-4 border-amber-400"
         : "";
 
   const isCancelled = item.itemStatus === "cancelled";
 
   return (
     <div
-      className={`px-4 py-2.5 flex items-start gap-3 ${timerBg} ${isDelivered || isCancelled ? "opacity-50" : ""}`}
+      className={`px-3.5 py-2.5 flex items-center justify-between gap-2.5 border-b border-white/5 last:border-0 ${timerBg} ${
+        isDelivered || isCancelled ? "opacity-40" : ""
+      }`}
     >
-      {/* Veg/Non-veg indicator */}
-      <div className="pt-0.5">{item.isVegetarian ? VEG_DOT : NON_VEG_DOT}</div>
-
-      {/* Item info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`font-semibold text-sm leading-snug ${isCancelled ? "line-through text-base-content/40" : ""}`}
-          >
-            {item.name}
-          </span>
-          <span className={pillCls("neutral", "font-bold tabular-nums")}>
-            ×{item.quantity}
-          </span>
-          <span className={pillCls(STATUS_PILL[item.itemStatus])}>
-            {STATUS_LABEL[item.itemStatus]}
-          </span>
+      {/* Left: Info */}
+      <div className="flex items-start gap-2 flex-1 min-w-0">
+        <div className="pt-0.5 shrink-0">
+          {item.isVegetarian ? VEG_DOT : NON_VEG_DOT}
         </div>
-        {item.notes && (
-          <p className="text-xs text-base-content/50 mt-0.5 italic">
-            📝 {item.notes}
-          </p>
-        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={`font-bold text-sm text-slate-900 ${
+                isCancelled ? "line-through text-slate-400" : ""
+              }`}
+            >
+              {item.name}
+            </span>
+            <span className="bg-amber-500 text-white font-extrabold text-xs px-1.5 py-0.2 rounded-md tabular-nums shrink-0 shadow-sm">
+              ×{item.quantity}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className={pillCls(STATUS_PILL[item.itemStatus], "text-[10px] px-1.5 py-0.2 font-bold uppercase tracking-wider")}>
+              {STATUS_LABEL[item.itemStatus]}
+            </span>
+
+            {item.notes && (
+              <span className="text-xs text-amber-800 font-semibold italic shrink-0">
+                📝 {item.notes}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Action buttons */}
+      {/* Right: Action buttons */}
       {!isDelivered && !isCancelled && (
-        <div className="flex gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {item.itemStatus === "pending" && (
             <button
               disabled={loading}
               onClick={() => handleClick("preparing")}
-              className="btn btn-xs btn-warning gap-1"
+              className="btn btn-xs bg-amber-500 hover:bg-amber-600 text-white font-bold gap-1 border-none shadow-sm rounded-lg px-2"
+              title="Start preparing"
             >
               {loading ? (
                 <span className="loading loading-spinner loading-xs" />
               ) : (
-                "🔥"
+                "🔥 Prep"
               )}
-              Prep
             </button>
           )}
-          {(item.itemStatus === "pending" ||
-            item.itemStatus === "preparing") && (
+
+          {(item.itemStatus === "pending" || item.itemStatus === "preparing") && (
             <button
               disabled={loading}
               onClick={() => handleClick("ready")}
-              className="btn btn-xs btn-success gap-1"
+              className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1 border-none shadow-sm rounded-lg px-2"
+              title="Mark item ready"
             >
               {loading ? (
                 <span className="loading loading-spinner loading-xs" />
               ) : (
-                "✓"
+                "✓ Ready"
               )}
-              Ready
             </button>
           )}
+
           {item.itemStatus === "ready" && (
             <button
               disabled={loading}
               onClick={() => handleClick("delivered")}
-              className="btn btn-xs btn-ghost text-base-content/50 gap-1"
+              className="btn btn-xs btn-ghost text-slate-700 hover:bg-slate-200 gap-1 rounded-lg px-2 font-bold"
+              title="Mark served"
             >
               {loading ? (
                 <span className="loading loading-spinner loading-xs" />
               ) : (
-                "✈"
+                "✈ Delivered"
               )}
-              Sent
             </button>
           )}
+
           {/* Kitchen can cancel any non-delivered item */}
-          {(item.itemStatus === "pending" ||
-            item.itemStatus === "preparing") && (
+          {(item.itemStatus === "pending" || item.itemStatus === "preparing") && (
             <button
               disabled={loading}
               onClick={() => handleClick("cancelled")}
-              className="btn btn-xs btn-ghost text-error border border-error/30 gap-1"
-              title="Cancel this item"
+              className="btn btn-xs btn-ghost text-error hover:bg-error/20 border border-error/30 rounded-lg px-1.5 font-bold"
+              title="Void item"
             >
               {loading ? (
                 <span className="loading loading-spinner loading-xs" />

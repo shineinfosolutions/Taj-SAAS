@@ -162,13 +162,29 @@ export const getDashboardMetrics = async () => {
     occupiedLocations,
   ] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Order.find({ createdAt: { $gte: today, $lt: tomorrow } } as any).lean<
-      IOrder[]
-    >(),
+    Order.find({
+      $or: [
+        { createdAt: { $gte: today, $lt: tomorrow } },
+        { paidAt: { $gte: today, $lt: tomorrow } },
+        { clearedAt: { $gte: today, $lt: tomorrow } },
+        {
+          updatedAt: { $gte: today, $lt: tomorrow },
+          status: { $in: ["paid", "cleared"] },
+        },
+      ],
+    } as any).lean<IOrder[]>(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Order.find({ createdAt: { $gte: yesterday, $lt: today } } as any).lean<
-      IOrder[]
-    >(),
+    Order.find({
+      $or: [
+        { createdAt: { $gte: yesterday, $lt: today } },
+        { paidAt: { $gte: yesterday, $lt: today } },
+        { clearedAt: { $gte: yesterday, $lt: today } },
+        {
+          updatedAt: { $gte: yesterday, $lt: today },
+          status: { $in: ["paid", "cleared"] },
+        },
+      ],
+    } as any).lean<IOrder[]>(),
     Order.countDocuments({
       status: {
         $in: [
@@ -188,20 +204,20 @@ export const getDashboardMetrics = async () => {
 
   const todayRevenue = todayOrders
     .filter((o) => o.status === "paid" || o.status === "cleared")
-    .reduce((sum, o) => sum + o.total, 0);
+    .reduce((sum, o) => sum + (o.total || o.paymentAmount || 0), 0);
 
   const todayOrderCount = todayOrders.length;
 
   const yesterdayRevenue = yesterdayOrders
     .filter((o) => o.status === "paid" || o.status === "cleared")
-    .reduce((sum, o) => sum + o.total, 0);
+    .reduce((sum, o) => sum + (o.total || o.paymentAmount || 0), 0);
 
   const yesterdayOrderCount = yesterdayOrders.length;
 
   return {
-    todayRevenue,
+    todayRevenue: Math.round(todayRevenue * 100) / 100,
     todayOrderCount,
-    yesterdayRevenue,
+    yesterdayRevenue: Math.round(yesterdayRevenue * 100) / 100,
     yesterdayOrderCount,
     activeOrders,
     totalLocations,

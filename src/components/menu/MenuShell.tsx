@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type {
   IBranding,
@@ -57,12 +58,24 @@ export default function MenuShell({
   locationType,
   viewMode,
 }: Props) {
-  // Room self-service ordering is disabled for Taj (restaurant & cafe — no room
-  // service). Any "room" location degrades to table (captain-led) mode: menu is
-  // view-only with no cart, no "Add to Order", and no WhatsApp self-order.
-  const mode: MenuMode = locationType === "room" ? "table" : locationType;
+  const mode: MenuMode = locationType === "none" ? "table" : locationType;
+  const [effectiveViewMode, setEffectiveViewMode] = useState<MenuViewMode>(viewMode);
 
-  if (viewMode === "tablet") {
+  useEffect(() => {
+    const handleResize = () => {
+      // Screens with width >= 768px (iPad Mini, iPad, Tablets, Laptops, Desktops) use the luxury 3D Flipbook
+      if (window.innerWidth >= 768) {
+        setEffectiveViewMode("tablet");
+      } else {
+        setEffectiveViewMode("mobile");
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  if (effectiveViewMode === "tablet") {
     return (
       <TabletMenuShell
         branding={branding}

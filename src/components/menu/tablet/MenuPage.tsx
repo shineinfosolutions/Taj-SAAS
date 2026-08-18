@@ -4,6 +4,7 @@ import Image from "next/image";
 import { UtensilsCrossed, Star, Play } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { useItemVideoStore } from "@/store/itemVideo";
+import { useFlyToCartStore } from "@/store/flyToCart";
 import { formatPrice } from "@/lib/utils";
 import type { CategoryWithItems, IItem } from "@/types";
 import { FssaiDot } from "@/components/ui/FssaiDot";
@@ -25,30 +26,29 @@ export default function MenuPage({
   items,
   chunkIndex,
   totalChunks,
-  isRoom,
   width,
   height,
   logoUrl,
 }: Props) {
   return (
     <div
-      className="w-full h-full flex flex-col overflow-hidden"
-      style={{ width, height, background: "var(--menu-page-bg)" }}
+      className="w-full h-full flex flex-col overflow-hidden select-none"
+      style={{ width, height, background: "var(--menu-page-bg, #FAF9F6)" }}
     >
       {/* Category header */}
-      <div className="px-6 py-4 border-b border-white/10">
+      <div className="px-6 py-3.5 border-b border-amber-200/50 flex items-center justify-between shrink-0 bg-amber-50/50">
         <div className="flex items-center gap-3">
           {category.iconEmoji ? (
             <span className="text-2xl">{category.iconEmoji}</span>
           ) : (
-            <UtensilsCrossed className="w-6 h-6 text-[var(--menu-accent)]" />
+            <UtensilsCrossed className="w-5 h-5 text-amber-700" />
           )}
           <div>
-            <h2 className="font-playfair text-white text-xl font-bold">
+            <h2 className="font-playfair text-slate-900 text-lg sm:text-xl font-black tracking-tight">
               {category.name}
             </h2>
             {totalChunks > 1 && (
-              <p className="text-white/55 text-xs">
+              <p className="text-amber-800 text-xs font-semibold">
                 Page {chunkIndex + 1} of {totalChunks}
               </p>
             )}
@@ -56,13 +56,12 @@ export default function MenuPage({
         </div>
       </div>
 
-      {/* Items grid — 3 columns × 2 rows */}
-      <div className="flex-1 p-4 grid grid-cols-3 gap-3 content-start overflow-hidden">
+      {/* Items grid — 3 columns × 2 rows (original size) */}
+      <div className="flex-1 p-3.5 grid grid-cols-3 gap-3 content-start overflow-hidden">
         {items.map((item) => (
           <TabletItemCard
             key={item._id}
             item={item}
-            isRoom={isRoom}
             logoUrl={logoUrl}
           />
         ))}
@@ -73,11 +72,9 @@ export default function MenuPage({
 
 function TabletItemCard({
   item,
-  isRoom,
   logoUrl,
 }: {
   item: IItem;
-  isRoom: boolean;
   logoUrl?: string | null;
 }) {
   const {
@@ -87,6 +84,8 @@ function TabletItemCard({
     removeItem,
   } = useCartStore();
   const openVideo = useItemVideoStore((s) => s.open);
+  const triggerFly = useFlyToCartStore((s) => s.triggerFly);
+
   const cartItem = cartItems.find((i) => i.itemId === item._id);
   const qty = cartItem?.quantity ?? 0;
 
@@ -105,120 +104,103 @@ function TabletItemCard({
 
   return (
     <div
-      className={`flex flex-col bg-white/5 rounded-xl overflow-hidden border transition-colors active:border-[var(--menu-accent-border)] ${item.isFeatured ? "border-[var(--menu-accent-border)]" : "border-white/10"}`}
+      className={`flex flex-col bg-white rounded-2xl overflow-hidden border transition-all hover:shadow-md hover:border-amber-400 shadow-sm ${
+        item.isFeatured ? "border-amber-400 ring-1 ring-amber-400/40" : "border-slate-200/90"
+      }`}
     >
-      {/* Image */}
-      <div className="relative aspect-square w-full bg-white/5">
+      {/* Image Container */}
+      <div className="relative aspect-[4/3] w-full bg-slate-100 shrink-0 overflow-hidden">
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
             alt={item.name}
             fill
             className="object-cover"
-            sizes="180px"
+            sizes="(max-width: 768px) 33vw, 200px"
           />
         ) : (
           <FoodPlaceholder logoUrl={logoUrl} />
         )}
-        {/* Veg/Non-veg indicator — FSSAI style */}
-        <div className="absolute top-1.5 left-1.5">
-          <FssaiDot isVeg={item.isVegetarian} size="md" />
+
+        {/* Veg/Non-veg indicator */}
+        <div className="absolute top-1.5 left-1.5 z-10 drop-shadow">
+          <FssaiDot isVeg={item.isVegetarian} size="sm" />
         </div>
-        {/* Play button — opens the dish video clip. Inner content is
-            pointer-events:none so react-pageflip sees the tap target as the
-            <button> (it only forwards clicks whose target tag is a/button);
-            otherwise the tap lands on the span/svg and gets eaten as a flip. */}
+
+        {/* Play video button */}
         {hasVideo && (
           <button
             onClick={() => openVideo(item)}
             aria-label={`Play ${item.name} video`}
-            className="absolute inset-0 flex items-center justify-center cursor-pointer touch-manipulation group"
+            className="absolute inset-0 flex items-center justify-center cursor-pointer touch-manipulation group z-10"
           >
             <span
-              className="w-12 h-12 rounded-full flex items-center justify-center transition-transform active:scale-90 group-hover:scale-105 pointer-events-none"
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 group-hover:scale-105 pointer-events-none"
               style={{
-                background: "rgba(0,0,0,0.55)",
-                border: "1px solid rgba(255,255,255,0.6)",
+                background: "rgba(0,0,0,0.6)",
+                border: "1px solid rgba(255,255,255,0.7)",
               }}
             >
-              <Play className="w-5 h-5 text-white fill-white ml-0.5" />
+              <Play className="w-4 h-4 text-white fill-white ml-0.5" />
             </span>
           </button>
         )}
+
         {item.isFeatured && (
-          <span
-            className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold"
-            style={{
-              background: "var(--menu-accent)",
-              color: "var(--menu-on-accent)",
-            }}
-          >
-            <Star className="w-2.5 h-2.5" fill="currentColor" /> Special
+          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold z-10 bg-amber-400 text-black shadow">
+            <Star className="w-2 h-2 fill-black" /> Special
           </span>
         )}
       </div>
 
-      {/* Info — name + price. When the dish has a video, the whole block is a
-          button that opens it. Children are pointer-events:none so the tap
-          target is the <button> (react-pageflip only forwards a/button taps). */}
-      <div className="p-2.5 flex flex-col gap-1 flex-1">
-        {(() => {
-          const Info = (
-            <>
-              <p
-                className="text-white text-sm font-medium line-clamp-2 leading-tight pointer-events-none"
-              >
-                {item.name}
-              </p>
-              <div className="flex items-center gap-1.5 mt-auto pointer-events-none">
-                {item.discountPrice ? (
-                  <>
-                    <span className="text-primary text-sm font-bold">
-                      {formatPrice(item.discountPrice)}
-                    </span>
-                    <span className="text-white/40 text-xs line-through">
-                      {formatPrice(item.price)}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-white/80 text-sm font-bold">
-                    {formatPrice(item.price)}
-                  </span>
-                )}
-              </div>
-            </>
-          );
-          return hasVideo ? (
-            <button
-              type="button"
-              onClick={() => openVideo(item)}
-              aria-label={`Play ${item.name} video`}
-              className="text-left flex flex-col gap-1 flex-1 cursor-pointer touch-manipulation"
-            >
-              {Info}
-            </button>
-          ) : (
-            <div className="flex flex-col gap-1 flex-1">{Info}</div>
-          );
-        })()}
+      {/* Info & Bottom Action Row */}
+      <div className="p-2.5 flex flex-col justify-between flex-1 gap-1.5 bg-white">
+        {hasVideo ? (
+          <button
+            type="button"
+            onClick={() => openVideo(item)}
+            className="text-left cursor-pointer"
+          >
+            <p className="text-slate-900 text-xs font-black line-clamp-1 leading-snug hover:text-amber-700">
+              {item.name}
+            </p>
+          </button>
+        ) : (
+          <p className="text-slate-900 text-xs font-black line-clamp-1 leading-snug">
+            {item.name}
+          </p>
+        )}
 
-        {/* Add/Qty — stop propagation so ordering never triggers the video */}
-        {isRoom && (
+        <div className="flex items-center justify-between gap-1 mt-auto pt-1.5 border-t border-slate-100">
+          <div className="flex items-baseline gap-1">
+            <span className="text-amber-700 text-xs md:text-sm font-black font-mono tracking-tight">
+              {formatPrice(item.discountPrice ?? item.price)}
+            </span>
+            {item.discountPrice && (
+              <span className="text-slate-400 text-[10px] line-through font-mono">
+                {formatPrice(item.price)}
+              </span>
+            )}
+          </div>
+
           <div
-            className="mt-1.5"
+            className="shrink-0"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
             {qty === 0 ? (
               <button
-                onClick={handleAdd}
+                onClick={(e) => {
+                  triggerFly(e.currentTarget, item.imageUrl);
+                  handleAdd();
+                }}
                 aria-label={`Add ${item.name} to order`}
-                className="bg-primary text-primary-content w-full rounded-lg text-xs font-bold h-11 cursor-pointer touch-manipulation active:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
+                className="bg-amber-500 hover:bg-amber-600 active:scale-90 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] cursor-pointer touch-manipulation transition-all shadow-xs flex items-center gap-0.5"
               >
-                ADD
+                ADD +
               </button>
             ) : (
-              <div className="flex items-center justify-between bg-primary/20 rounded-lg h-11">
+              <div className="flex items-center bg-amber-50 rounded-lg h-6 border border-amber-300 px-0.5">
                 <button
                   onClick={() =>
                     qty === 1
@@ -226,24 +208,27 @@ function TabletItemCard({
                       : updateQuantity(item._id, qty - 1)
                   }
                   aria-label={`Decrease ${item.name} quantity`}
-                  className="text-primary font-bold text-lg leading-none flex-1 h-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-60"
+                  className="text-amber-800 font-extrabold text-xs w-5 h-full flex items-center justify-center cursor-pointer active:scale-75"
                 >
                   −
                 </button>
-                <span className="text-primary font-bold text-sm tabular-nums min-w-6 text-center">
+                <span className="text-slate-900 font-extrabold text-xs tabular-nums px-1 min-w-4 text-center">
                   {qty}
                 </span>
                 <button
-                  onClick={() => updateQuantity(item._id, qty + 1)}
+                  onClick={(e) => {
+                    triggerFly(e.currentTarget, item.imageUrl);
+                    updateQuantity(item._id, qty + 1);
+                  }}
                   aria-label={`Increase ${item.name} quantity`}
-                  className="text-primary font-bold text-lg leading-none flex-1 h-full flex items-center justify-center cursor-pointer touch-manipulation active:opacity-60"
+                  className="text-amber-800 font-extrabold text-xs w-5 h-full flex items-center justify-center cursor-pointer active:scale-75"
                 >
                   +
                 </button>
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

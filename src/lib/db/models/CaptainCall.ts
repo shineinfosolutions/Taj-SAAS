@@ -14,7 +14,7 @@ const CaptainCallSchema = new Schema<ICaptainCallDoc>(
   {
     tableId: { type: String, required: true },
     tableLabel: { type: String, required: true },
-    locationCode: { type: String, required: true },
+    locationCode: { type: String, required: false, default: "" },
     isGeneric: { type: Boolean, default: false },
     status: {
       type: String,
@@ -37,6 +37,10 @@ CaptainCallSchema.index(
 
 // Auto-delete any call after 30 minutes regardless
 CaptainCallSchema.index({ createdAt: 1 }, { expireAfterSeconds: 1800 });
+
+if (mongoose.models.CaptainCall) {
+  delete (mongoose.models as Record<string, unknown>).CaptainCall;
+}
 
 const CaptainCall: Model<ICaptainCallDoc> =
   mongoose.models.CaptainCall ||
