@@ -58,8 +58,7 @@ export default function TabletVideoModal() {
       imageUrl: item.imageUrl,
       isVegetarian: item.isVegetarian,
     });
-    const rect = e.currentTarget.getBoundingClientRect();
-    triggerFly(rect.left + rect.width / 2, rect.top + rect.height / 2, item.imageUrl);
+    triggerFly(e.currentTarget, item.imageUrl);
   };
 
   const handleInc = (e: React.MouseEvent) => {
