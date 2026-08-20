@@ -67,6 +67,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="light"
+      suppressHydrationWarning
       className={cn(
         "h-full",
         "antialiased",
@@ -77,7 +78,10 @@ export default function RootLayout({
         geist.variable,
       )}
     >
-      <body className="min-h-full bg-[#FAF9F6] text-slate-900 selection:bg-amber-100 selection:text-amber-900">
+      <body
+        suppressHydrationWarning
+        className="min-h-full bg-[#FAF9F6] text-slate-900 selection:bg-amber-100 selection:text-amber-900"
+      >
         <PWAManifestManager />
         <ChunkErrorReload />
         {children}

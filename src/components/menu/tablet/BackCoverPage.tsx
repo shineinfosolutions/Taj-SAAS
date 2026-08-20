@@ -11,6 +11,44 @@ interface Props {
   height: number;
 }
 
+function formatDisplayNumber(raw?: string): string {
+  if (!raw) return "";
+  const cleaned = raw.trim();
+  const digits = cleaned.replace(/\D/g, "");
+
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  if (cleaned.startsWith("+91")) {
+    const after = cleaned.slice(3).trim();
+    if (after.length === 10) {
+      return `+91 ${after.slice(0, 5)} ${after.slice(5)}`;
+    }
+    return cleaned;
+  }
+  if (cleaned.startsWith("+")) {
+    return cleaned;
+  }
+  return `+91 ${cleaned}`;
+}
+
+function getTelHref(raw?: string): string {
+  if (!raw) return "";
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) digits = `91${digits}`;
+  return `tel:+${digits}`;
+}
+
+function getWhatsAppHref(raw?: string): string {
+  if (!raw) return "";
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) digits = `91${digits}`;
+  return `https://wa.me/${digits}`;
+}
+
 export default function BackCoverPage({
   branding,
   location,
@@ -23,9 +61,12 @@ export default function BackCoverPage({
       )}`
     : null;
 
+  const phoneValue = branding?.phone || branding?.callNumber;
+  const whatsappValue = branding?.whatsappNumber;
+
   return (
     <div
-      className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden p-6"
+      className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden p-6 select-none"
       style={{
         width,
         height,
@@ -40,17 +81,15 @@ export default function BackCoverPage({
       <div className="relative z-10 text-center px-8 flex flex-col items-center gap-4">
         <div className="w-16 h-0.5 bg-amber-500/40" />
 
-        {branding?.logoUrl && (
-          <div className="p-1 rounded-full bg-white border-2 border-amber-400 shadow-md">
-            <Image
-              src={branding.logoUrl}
-              alt="logo"
-              width={65}
-              height={65}
-              className="rounded-full object-cover"
-            />
-          </div>
-        )}
+        <div className="p-1.5 rounded-full bg-white border-2 border-amber-400 shadow-md">
+          <Image
+            src={branding?.logoUrl || "/tajlogo.png"}
+            alt="logo"
+            width={70}
+            height={70}
+            className="rounded-full object-cover"
+          />
+        </div>
 
         <div>
           <h2 className="font-playfair text-slate-900 text-2xl font-black tracking-widest uppercase">
@@ -64,18 +103,31 @@ export default function BackCoverPage({
         </div>
 
         {/* Contact info */}
-        <div className="flex flex-col gap-2 text-xs font-bold text-slate-800">
-          {branding?.callNumber && (
-            <div className="inline-flex items-center gap-2 justify-center bg-white border border-slate-200 px-4 py-1.5 rounded-full shadow-xs">
-              <Phone className="w-3.5 h-3.5 text-amber-600" />
-              <span>{branding.callNumber}</span>
-            </div>
+        <div className="flex flex-col gap-2.5 text-xs font-bold text-slate-800 w-full max-w-xs">
+          {phoneValue && (
+            <a
+              href={getTelHref(phoneValue)}
+              className="inline-flex items-center gap-2.5 justify-center bg-white border border-slate-200 hover:border-amber-400 px-4 py-2.5 rounded-full shadow-xs transition-all hover:scale-[1.02] active:scale-95"
+            >
+              <Phone className="w-4 h-4 text-amber-600" />
+              <span className="text-slate-800 font-bold tracking-wide">
+                {formatDisplayNumber(phoneValue)}
+              </span>
+            </a>
           )}
-          {branding?.whatsappNumber && (
-            <div className="inline-flex items-center gap-2 justify-center bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-1.5 rounded-full shadow-xs">
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span>+{branding.whatsappNumber}</span>
-            </div>
+
+          {whatsappValue && (
+            <a
+              href={getWhatsAppHref(whatsappValue)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 justify-center bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-emerald-800 px-4 py-2.5 rounded-full shadow-xs transition-all hover:scale-[1.02] active:scale-95"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-600" />
+              <span className="font-bold tracking-wide">
+                {formatDisplayNumber(whatsappValue)}
+              </span>
+            </a>
           )}
         </div>
 

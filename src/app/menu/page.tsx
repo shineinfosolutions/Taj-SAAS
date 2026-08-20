@@ -4,6 +4,9 @@ import { isMobileUserAgent, chunkArray } from "@/lib/utils";
 import MenuShell from "@/components/menu/MenuShell";
 import type { CategoryWithItems, MenuViewMode, MenuMode } from "@/types";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface Props {
   searchParams: Promise<{ type?: string; location?: string }>;
 }
@@ -80,7 +83,7 @@ export function generateFlipbookPageData(
   ];
 
   for (const cat of cats) {
-    const chunks = chunkArray(cat.items, 6);
+    const chunks = chunkArray(cat.items, 4);
     chunks.forEach((items, i) =>
       pages.push({
         type: "menu",
@@ -93,8 +96,10 @@ export function generateFlipbookPageData(
   }
 
   // back_cover should sit on the RIGHT page of the final spread (odd index).
-  // Push a blank if needed so its index will be odd (array length must be even before push).
-  if (pages.length % 2 !== 0) pages.push({ type: "blank" });
+  // When pages.length is ODD (e.g. 41 items, indices 0..40), index 40 is on the LEFT.
+  // Pushing back_cover directly puts it at index 41 on the RIGHT of the last category!
+  // Only when pages.length is EVEN (e.g. 40), we push a filler page so back_cover stays on the right.
+  if (pages.length % 2 === 0) pages.push({ type: "blank" });
   pages.push({ type: "back_cover" });
 
   return pages;

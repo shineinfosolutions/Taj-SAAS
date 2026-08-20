@@ -6,6 +6,7 @@ import Category from "@/lib/db/models/Category";
 import Item from "@/lib/db/models/Item";
 import Location from "@/lib/db/models/Location";
 import Order from "@/lib/db/models/Order";
+import Staff from "@/lib/db/models/Staff";
 import type {
   IBranding,
   ICategory,
@@ -74,7 +75,7 @@ export const getLocationById = async (
 export const getAllLocations = cache(async (): Promise<ILocation[]> => {
   await connectDB();
   return Location.find({ isActive: true })
-    .sort({ type: 1, name: 1 })
+    .sort({ type: 1, label: 1 })
     .lean<ILocation[]>();
 });
 
@@ -141,7 +142,7 @@ export const getOrdersByDateRange = async (
 ): Promise<IOrder[]> => {
   await connectDB();
   return Order.find({ createdAt: { $gte: from, $lte: to } })
-    .populate("locationId", "name type")
+    .populate("tableId", "label type")
     .sort({ createdAt: -1 })
     .lean<IOrder[]>();
 };

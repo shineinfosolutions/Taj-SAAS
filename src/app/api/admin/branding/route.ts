@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
@@ -16,13 +17,25 @@ import { BrandingSchema } from "@/lib/validations";
 function dbToForm(doc: any) {
   if (!doc) return {};
   const { restaurantName, managerPinHash, ...rest } = doc;
-  return { ...rest, hotelName: restaurantName, managerPinSet: !!managerPinHash };
+  return {
+    ...rest,
+    hotelName: restaurantName,
+    phone: doc.phone || doc.callNumber || "",
+    callNumber: doc.callNumber || doc.phone || "",
+    managerPinSet: !!managerPinHash,
+  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function formToDb(data: any) {
   const { hotelName, managerPin, ...rest } = data;
-  const out: Record<string, unknown> = { ...rest, restaurantName: hotelName };
+  const phoneNumber = data.phone || data.callNumber || "";
+  const out: Record<string, unknown> = {
+    ...rest,
+    restaurantName: hotelName,
+    phone: phoneNumber,
+    callNumber: phoneNumber,
+  };
   // Only touch the hash when a new PIN was actually typed (non-empty).
   if (typeof managerPin === "string" && managerPin.trim()) {
     out.managerPinHash = await bcrypt.hash(managerPin.trim(), 10);
@@ -62,5 +75,11 @@ export async function PUT(req: NextRequest) {
     { $set: await formToDb(parsed.data) },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
+
+  try {
+    revalidatePath("/menu");
+    revalidatePath("/admin/branding");
+  } catch {}
+
   return NextResponse.json(dbToForm(updated?.toObject?.() ?? updated));
 }

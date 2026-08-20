@@ -339,7 +339,7 @@ export default function BrandingPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 label="WhatsApp Number"
-                hint="(no + prefix)"
+                hint="10-digit mobile number (India +91)"
                 required
                 error={
                   errors.whatsappNumber
@@ -348,14 +348,29 @@ export default function BrandingPage() {
                 }
                 className="sm:col-span-2"
               >
-                <input
-                  {...register("whatsappNumber")}
-                  className={inputCls(!!errors.whatsappNumber)}
-                  placeholder="91XXXXXXXXXX"
-                />
+                <div className="flex rounded-xl overflow-hidden border border-base-300 bg-base-100 focus-within:border-primary">
+                  <span className="bg-base-200 px-3 py-2 text-xs font-bold text-base-content/60 flex items-center border-r border-base-300">
+                    🇮🇳 +91
+                  </span>
+                  <input
+                    {...register("whatsappNumber")}
+                    className="w-full bg-transparent px-3 py-2 text-sm focus:outline-none"
+                    placeholder="9876543210"
+                  />
+                </div>
               </FormField>
-              <FormField label="Phone">
-                <input {...register("phone")} className={inputCls()} />
+
+              <FormField label="Phone / Mobile Number" hint="Calling number">
+                <div className="flex rounded-xl overflow-hidden border border-base-300 bg-base-100 focus-within:border-primary">
+                  <span className="bg-base-200 px-3 py-2 text-xs font-bold text-base-content/60 flex items-center border-r border-base-300">
+                    🇮🇳 +91
+                  </span>
+                  <input
+                    {...register("phone")}
+                    className="w-full bg-transparent px-3 py-2 text-sm focus:outline-none"
+                    placeholder="9876543210"
+                  />
+                </div>
               </FormField>
               <FormField label="Email">
                 <input

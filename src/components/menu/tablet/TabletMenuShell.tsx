@@ -38,7 +38,7 @@ const FlipPage = forwardRef<
 >(({ children, className = "" }, ref) => (
   <div
     ref={ref}
-    className={`overflow-hidden ${className}`}
+    className={`w-full h-full overflow-hidden ${className}`}
     style={{
       background: "#FAF9F6",
       backgroundImage:
@@ -109,9 +109,27 @@ export default function TabletMenuShell({
     if (!flipbookReady) setFlipbookReady(true);
   };
 
-  const goPrev = () => flipBookRef.current?.pageFlip().flipPrev();
-  const goNext = () => flipBookRef.current?.pageFlip().flipNext();
-  const goToPage = (n: number) => flipBookRef.current?.pageFlip().turnToPage(n);
+  const goPrev = () => {
+    try {
+      flipBookRef.current?.pageFlip()?.flipPrev();
+    } catch {
+      // safe fallback
+    }
+  };
+  const goNext = () => {
+    try {
+      flipBookRef.current?.pageFlip()?.flipNext();
+    } catch {
+      // safe fallback
+    }
+  };
+  const goToPage = (n: number) => {
+    try {
+      flipBookRef.current?.pageFlip()?.turnToPage(n);
+    } catch {
+      // safe fallback
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -245,7 +263,7 @@ export default function TabletMenuShell({
           useMouseEvents
           swipeDistance={40}
           showPageCorners
-          disableFlipByClick={false}
+          disableFlipByClick={true}
         >
           {pages.map((page, i) => (
             <FlipPage key={i}>
@@ -270,7 +288,9 @@ export default function TabletMenuShell({
                     const idx = pages.findIndex(
                       (p) => p.type === "menu" && p.category._id === catId,
                     );
-                    if (idx !== -1) goToPage(idx);
+                    if (idx !== -1) {
+                      goToPage(idx);
+                    }
                   }}
                   width={dimensions.width}
                   height={dimensions.height}
@@ -289,10 +309,16 @@ export default function TabletMenuShell({
                 />
               )}
               {page.type === "blank" && (
-                <div className="w-full h-full flex items-center justify-center bg-[#FAF9F6]">
-                  <span className="text-amber-800/20 text-6xl font-playfair">
-                    ✦
-                  </span>
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#FAF9F6] p-8 text-center select-none relative">
+                  <div className="absolute inset-4 rounded-2xl border border-amber-800/10 pointer-events-none" />
+                  <span className="text-amber-500/40 text-4xl mb-3">✦</span>
+                  <h3 className="font-playfair text-slate-800 text-xl font-bold uppercase tracking-widest mb-2">
+                    Thank You
+                  </h3>
+                  <p className="text-amber-900/60 text-xs tracking-wider italic max-w-xs">
+                    Great food brings people together. We hope you have a delightful dining experience with us.
+                  </p>
+                  <div className="w-12 h-0.5 bg-amber-500/30 mt-4" />
                 </div>
               )}
               {page.type === "back_cover" && (
@@ -325,8 +351,12 @@ export default function TabletMenuShell({
         }}
       />
 
-      {/* ── Top-left Table selector button (Clickable to change table) ── */}
+      {/* ── Top-left Table selector button (Clickable on Cover page or when table not chosen) ── */}
       {(() => {
+        const isCoverPage = currentPage === 0;
+        // Hide on menu/category pages once table is selected so it never blocks food cards
+        if (!isCoverPage && currentLocation) return null;
+
         const currentTableDisplay = currentLocation
           ? currentLocation.label.trim().toLowerCase().startsWith("table")
             ? currentLocation.label.trim()
@@ -337,7 +367,8 @@ export default function TabletMenuShell({
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ delay: 0.2 }}
             className="fixed left-3 sm:left-4 flex items-center gap-2"
             style={{
               zIndex: 9999,
@@ -364,7 +395,7 @@ export default function TabletMenuShell({
                 🪑 {currentTableDisplay}
               </span>
               <span className="text-[10px] text-white bg-amber-500 font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
-                Change ▾
+                {currentLocation ? "Change ▾" : "Choose ▾"}
               </span>
             </motion.button>
           </motion.div>

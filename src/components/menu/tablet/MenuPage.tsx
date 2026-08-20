@@ -56,8 +56,8 @@ export default function MenuPage({
         </div>
       </div>
 
-      {/* Items grid — 3 columns × 2 rows (original size) */}
-      <div className="flex-1 p-3.5 grid grid-cols-3 gap-3 content-start overflow-hidden">
+      {/* Items grid — 2 columns for large, premium food cards */}
+      <div className="flex-1 p-4 sm:p-5 grid grid-cols-2 gap-3.5 sm:gap-4 content-start overflow-hidden">
         {items.map((item) => (
           <TabletItemCard
             key={item._id}
@@ -101,83 +101,100 @@ function TabletItemCard({
     });
 
   const hasVideo = !!item.videoUrl;
+  const hasDetails = !!(
+    item.imageUrl ||
+    item.videoUrl ||
+    (item.description && item.description.trim().length > 0)
+  );
 
   return (
     <div
-      className={`flex flex-col bg-white rounded-2xl overflow-hidden border transition-all hover:shadow-md hover:border-amber-400 shadow-sm ${
-        item.isFeatured ? "border-amber-400 ring-1 ring-amber-400/40" : "border-slate-200/90"
+      className={`flex flex-col bg-white rounded-2xl overflow-hidden border transition-all shadow-sm ${
+        hasDetails ? "hover:shadow-lg hover:border-amber-400" : ""
+      } ${
+        item.isFeatured ? "border-amber-400 ring-1.5 ring-amber-400/50" : "border-slate-200/90"
       }`}
     >
       {/* Image Container */}
-      <div className="relative aspect-[4/3] w-full bg-slate-100 shrink-0 overflow-hidden">
+      <div
+        onClick={hasDetails ? () => openVideo(item) : undefined}
+        className={`relative aspect-[16/10] w-full bg-slate-100 shrink-0 overflow-hidden ${
+          hasDetails ? "cursor-pointer group" : ""
+        }`}
+      >
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
             alt={item.name}
             fill
-            className="object-cover"
-            sizes="(max-width: 768px) 33vw, 200px"
+            className={`object-cover transition-transform duration-300 ${
+              hasDetails ? "group-hover:scale-105" : ""
+            }`}
+            sizes="(max-width: 768px) 50vw, 320px"
           />
         ) : (
           <FoodPlaceholder logoUrl={logoUrl} />
         )}
 
         {/* Veg/Non-veg indicator */}
-        <div className="absolute top-1.5 left-1.5 z-10 drop-shadow">
+        <div className="absolute top-2 left-2 z-10 drop-shadow">
           <FssaiDot isVeg={item.isVegetarian} size="sm" />
         </div>
 
         {/* Play video button */}
         {hasVideo && (
-          <button
-            onClick={() => openVideo(item)}
-            aria-label={`Play ${item.name} video`}
-            className="absolute inset-0 flex items-center justify-center cursor-pointer touch-manipulation group z-10"
-          >
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <span
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 group-hover:scale-105 pointer-events-none"
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-90 group-hover:scale-110 shadow-lg"
               style={{
-                background: "rgba(0,0,0,0.6)",
-                border: "1px solid rgba(255,255,255,0.7)",
+                background: "rgba(0,0,0,0.65)",
+                border: "1.5px solid rgba(255,255,255,0.85)",
               }}
             >
               <Play className="w-4 h-4 text-white fill-white ml-0.5" />
             </span>
-          </button>
+          </div>
         )}
 
         {item.isFeatured && (
-          <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold z-10 bg-amber-400 text-black shadow">
-            <Star className="w-2 h-2 fill-black" /> Special
+          <span className="absolute top-2 right-2 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold z-10 bg-amber-400 text-black shadow">
+            <Star className="w-2.5 h-2.5 fill-black" /> Special
           </span>
         )}
       </div>
 
       {/* Info & Bottom Action Row */}
-      <div className="p-2.5 flex flex-col justify-between flex-1 gap-1.5 bg-white">
-        {hasVideo ? (
-          <button
-            type="button"
-            onClick={() => openVideo(item)}
-            className="text-left cursor-pointer"
+      <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1 gap-2 bg-white">
+        <div
+          onClick={hasDetails ? () => openVideo(item) : undefined}
+          className={hasDetails ? "cursor-pointer group" : ""}
+        >
+          <p
+            className={`text-slate-900 text-sm sm:text-base font-extrabold line-clamp-1 leading-snug transition-colors ${
+              hasDetails ? "group-hover:text-amber-700" : ""
+            }`}
           >
-            <p className="text-slate-900 text-xs font-black line-clamp-1 leading-snug hover:text-amber-700">
-              {item.name}
-            </p>
-          </button>
-        ) : (
-          <p className="text-slate-900 text-xs font-black line-clamp-1 leading-snug">
             {item.name}
           </p>
-        )}
 
-        <div className="flex items-center justify-between gap-1 mt-auto pt-1.5 border-t border-slate-100">
-          <div className="flex items-baseline gap-1">
-            <span className="text-amber-700 text-xs md:text-sm font-black font-mono tracking-tight">
+          {item.description && (
+            <p
+              className={`text-slate-500 text-[11px] sm:text-xs line-clamp-1 leading-tight font-normal mt-0.5 transition-colors ${
+                hasDetails ? "group-hover:text-slate-700" : ""
+              }`}
+            >
+              {item.description}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-1 mt-auto pt-2 border-t border-slate-100">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-amber-700 text-sm sm:text-base font-black font-mono tracking-tight">
               {formatPrice(item.discountPrice ?? item.price)}
             </span>
             {item.discountPrice && (
-              <span className="text-slate-400 text-[10px] line-through font-mono">
+              <span className="text-slate-400 text-xs line-through font-mono">
                 {formatPrice(item.price)}
               </span>
             )}
@@ -190,38 +207,44 @@ function TabletItemCard({
           >
             {qty === 0 ? (
               <button
+                type="button"
                 onClick={(e) => {
+                  e.stopPropagation();
                   triggerFly(e.currentTarget, item.imageUrl);
                   handleAdd();
                 }}
                 aria-label={`Add ${item.name} to order`}
-                className="bg-amber-500 hover:bg-amber-600 active:scale-90 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] cursor-pointer touch-manipulation transition-all shadow-xs flex items-center gap-0.5"
+                className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs cursor-pointer touch-manipulation transition-all shadow-xs flex items-center gap-1"
               >
                 ADD +
               </button>
             ) : (
-              <div className="flex items-center bg-amber-50 rounded-lg h-6 border border-amber-300 px-0.5">
+              <div className="flex items-center bg-amber-50 rounded-xl h-7 sm:h-8 border border-amber-300 px-1">
                 <button
-                  onClick={() =>
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     qty === 1
                       ? removeItem(item._id)
-                      : updateQuantity(item._id, qty - 1)
-                  }
+                      : updateQuantity(item._id, qty - 1);
+                  }}
                   aria-label={`Decrease ${item.name} quantity`}
-                  className="text-amber-800 font-extrabold text-xs w-5 h-full flex items-center justify-center cursor-pointer active:scale-75"
+                  className="text-amber-800 font-extrabold text-sm w-6 h-full flex items-center justify-center cursor-pointer active:scale-75"
                 >
                   −
                 </button>
-                <span className="text-slate-900 font-extrabold text-xs tabular-nums px-1 min-w-4 text-center">
+                <span className="text-slate-900 font-black text-xs sm:text-sm tabular-nums px-1.5 min-w-5 text-center">
                   {qty}
                 </span>
                 <button
+                  type="button"
                   onClick={(e) => {
+                    e.stopPropagation();
                     triggerFly(e.currentTarget, item.imageUrl);
                     updateQuantity(item._id, qty + 1);
                   }}
                   aria-label={`Increase ${item.name} quantity`}
-                  className="text-amber-800 font-extrabold text-xs w-5 h-full flex items-center justify-center cursor-pointer active:scale-75"
+                  className="text-amber-800 font-extrabold text-sm w-6 h-full flex items-center justify-center cursor-pointer active:scale-75"
                 >
                   +
                 </button>
