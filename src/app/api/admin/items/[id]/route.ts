@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Item from "@/lib/db/models/Item";
-import Order from "@/lib/db/models/Order";
 import { ItemSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { deleteFromCloudinary, extractPublicId } from "@/lib/cloudinary";
@@ -93,19 +92,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   }
   const { id } = await params;
   await connectDB();
-
-  // Don't orphan order history / break top-item reports. If the item was ever
-  // ordered, mark it unavailable instead of hard-deleting.
-  const used = await Order.exists({ "items.itemId": id });
-  if (used) {
-    return NextResponse.json(
-      {
-        error:
-          "This item appears in past orders. Mark it unavailable instead of deleting.",
-      },
-      { status: 409 },
-    );
-  }
 
   const item = await Item.findByIdAndDelete(id);
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
