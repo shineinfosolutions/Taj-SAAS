@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Users, Clock, BellRing, Utensils, ChefHat, Sparkles } from "lucide-react";
 import { useCaptainStore } from "@/store/captain";
 import type { ILocation, IOrder } from "@/types";
+import { naturalSortLocations } from "@/lib/location-utils";
 
 interface TableSelectorProps {
   onSelectTable: (table: ILocation) => void;
@@ -92,7 +93,7 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
     prevPendingCount.current = totalPendingSelfOrders;
   }, [totalPendingSelfOrders]);
 
-  const list = locations.filter((l) => l.type === "table");
+  const list = naturalSortLocations(locations.filter((l) => l.type === "table"));
   const free = list.filter(
     (t) =>
       !t.isOccupied &&

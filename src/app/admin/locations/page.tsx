@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
 import { QRCodeManager } from "@/components/admin/QRCodeManager";
 import type { QRLocation, QRBranding } from "@/components/admin/QRCodeManager";
+import { naturalSortLocations } from "@/lib/location-utils";
 
 type LocationInput = z.infer<typeof LocationSchema>;
 interface Location extends LocationInput {
@@ -177,8 +178,8 @@ export default function LocationsPage() {
     qc.invalidateQueries({ queryKey: ["admin-locations"] });
   };
 
-  const tables = locations.filter((l) => l.type === "table");
-  const rooms = locations.filter((l) => l.type === "room");
+  const tables = naturalSortLocations(locations.filter((l) => l.type === "table"));
+  const rooms = naturalSortLocations(locations.filter((l) => l.type === "room"));
 
   return (
     <div>

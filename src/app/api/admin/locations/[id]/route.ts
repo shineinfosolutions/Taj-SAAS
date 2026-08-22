@@ -6,6 +6,11 @@ import Order from "@/lib/db/models/Order";
 import CaptainCall from "@/lib/db/models/CaptainCall";
 import { LocationSchema } from "@/lib/validations";
 
+import {
+  formatLocationLabel,
+  formatLocationCode,
+} from "@/lib/location-utils";
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
@@ -23,10 +28,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     );
   }
   await connectDB();
-  const code = parsed.data.label.toUpperCase().replace(/\s+/g, "-");
+  const label = formatLocationLabel(parsed.data.label);
+  const code = formatLocationCode(label);
   const updated = await Location.findByIdAndUpdate(
     id,
-    { ...parsed.data, code },
+    { ...parsed.data, label, code },
     { new: true },
   );
   if (!updated)

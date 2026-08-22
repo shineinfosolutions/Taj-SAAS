@@ -7,6 +7,7 @@ import Item from "@/lib/db/models/Item";
 import Location from "@/lib/db/models/Location";
 import Order from "@/lib/db/models/Order";
 import Staff from "@/lib/db/models/Staff";
+import { naturalSortLocations } from "@/lib/location-utils";
 import type {
   IBranding,
   ICategory,
@@ -74,9 +75,8 @@ export const getLocationById = async (
 
 export const getAllLocations = cache(async (): Promise<ILocation[]> => {
   await connectDB();
-  return Location.find({ isActive: true })
-    .sort({ type: 1, label: 1 })
-    .lean<ILocation[]>();
+  const locs = await Location.find({ isActive: true }).lean<ILocation[]>();
+  return naturalSortLocations(locs);
 });
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
