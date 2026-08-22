@@ -16,6 +16,9 @@ import LottiePlayer from "@/components/LottiePlayer";
 import { FssaiDot } from "@/components/ui/FssaiDot";
 import { useFlyToCartStore } from "@/store/flyToCart";
 import FlyToCartOverlay from "@/components/menu/FlyToCartOverlay";
+import MobileLiveOrderTracker, {
+  ActiveOrderData,
+} from "./MobileLiveOrderTracker";
 import type {
   IBranding,
   ILocation,
@@ -353,6 +356,29 @@ export default function MobileMenuShell({
   const { addItem, totalItems, setLocation } = useCartStore();
   const triggerFly = useFlyToCartStore((s) => s.triggerFly);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [activeOrders, setActiveOrders] = useState<ActiveOrderData[]>([]);
+
+  useEffect(() => {
+    if (!location?._id && !location?.code) return;
+    const fetchActive = async () => {
+      try {
+        const query = location?._id
+          ? `tableId=${location._id}`
+          : `locationCode=${encodeURIComponent(location?.code || "")}`;
+        const res = await fetch(`/api/orders/table-active?${query}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.activeOrders)) {
+            setActiveOrders(data.activeOrders);
+          }
+        }
+      } catch {}
+    };
+
+    fetchActive();
+    const interval = setInterval(fetchActive, 4000);
+    return () => clearInterval(interval);
+  }, [location]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
@@ -790,6 +816,15 @@ export default function MobileMenuShell({
         locationCode={location?.code ?? null}
         showScrollTop={showScrollTop}
       />
+      {/* ── Live Order Tracker (Only shown when cart is not open/empty to avoid collision) ── */}
+      {cartCount === 0 && (
+        <MobileLiveOrderTracker
+          activeOrders={activeOrders}
+          onAddMore={() => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      )}
       <FlyToCartOverlay />
     </div>
   );

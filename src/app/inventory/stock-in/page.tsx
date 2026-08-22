@@ -21,6 +21,8 @@ interface InvItem {
 }
 interface Line {
   inventoryItemId: string;
+  customItemName?: string;
+  unit?: string;
   qtyReceived: number;
   rate: number;
 }
@@ -54,11 +56,16 @@ export default function StockInPage() {
   const [lines, setLines] = useState<Line[]>([]);
 
   const addLine = () => {
-    if (!items[0]) {
-      toast.error("Add ingredients first");
-      return;
-    }
-    setLines([...lines, { inventoryItemId: items[0]._id, qtyReceived: 0, rate: 0 }]);
+    setLines([
+      ...lines,
+      {
+        inventoryItemId: items[0]?._id || "custom",
+        customItemName: !items[0] ? "New Item" : undefined,
+        unit: items[0]?.purchaseUnit || "pcs",
+        qtyReceived: 0,
+        rate: 0,
+      },
+    ]);
   };
 
   const submit = useMutation({
@@ -118,23 +125,53 @@ export default function StockInPage() {
         <div className="space-y-2">
           {lines.map((l, i) => {
             const item = items.find((x) => x._id === l.inventoryItemId);
+            const isCustom = l.inventoryItemId === "custom" || (!item && !!l.customItemName);
             return (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <ItemCombo
-                  className="flex-1"
-                  value={l.inventoryItemId}
+                  className="flex-1 min-w-[200px]"
+                  allowCustom
+                  value={isCustom ? (l.customItemName || "") : l.inventoryItemId}
                   onChange={(v) => {
+                    const it = items.find((x) => x._id === v);
                     const n = [...lines];
-                    n[i] = { ...l, inventoryItemId: v };
+                    if (it) {
+                      n[i] = { ...l, inventoryItemId: it._id, customItemName: undefined, unit: it.purchaseUnit };
+                    } else {
+                      n[i] = { ...l, inventoryItemId: "custom", customItemName: v, unit: l.unit || "pcs" };
+                    }
+                    setLines(n);
+                  }}
+                  onAddCustom={(name) => {
+                    const n = [...lines];
+                    n[i] = { ...l, inventoryItemId: "custom", customItemName: name, unit: l.unit || "pcs" };
                     setLines(n);
                   }}
                   options={items.map((it) => ({ value: it._id, label: it.name }))}
                 />
+                {isCustom && (
+                  <select
+                    className="select select-bordered select-sm w-20"
+                    value={l.unit || "pcs"}
+                    onChange={(e) => {
+                      const n = [...lines];
+                      n[i] = { ...l, unit: e.target.value };
+                      setLines(n);
+                    }}
+                  >
+                    <option value="pcs">pcs</option>
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                    <option value="ltr">ltr</option>
+                    <option value="ml">ml</option>
+                    <option value="pack">pack</option>
+                  </select>
+                )}
                 <Input
                   type="number"
                   className="w-24"
-                  placeholder={item?.purchaseUnit ?? "qty"}
-                  value={l.qtyReceived}
+                  placeholder={item?.purchaseUnit ?? l.unit ?? "qty"}
+                  value={l.qtyReceived || ""}
                   onChange={(e) => {
                     const n = [...lines];
                     n[i] = { ...l, qtyReceived: Number(e.target.value) };
@@ -142,13 +179,13 @@ export default function StockInPage() {
                   }}
                 />
                 <span className="text-xs text-base-content/50 w-8">
-                  {item?.purchaseUnit}
+                  {item?.purchaseUnit ?? l.unit ?? "pcs"}
                 </span>
                 <Input
                   type="number"
                   className="w-24"
                   placeholder="₹/unit"
-                  value={l.rate}
+                  value={l.rate || ""}
                   onChange={(e) => {
                     const n = [...lines];
                     n[i] = { ...l, rate: Number(e.target.value) };

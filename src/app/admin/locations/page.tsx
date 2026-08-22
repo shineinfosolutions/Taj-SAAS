@@ -118,12 +118,21 @@ export default function LocationsPage() {
       );
       return { prev };
     },
-    onSuccess: () => toast.success("Location deleted"),
+    onSuccess: () => {
+      toast.success("Location deleted");
+      qc.invalidateQueries({ queryKey: ["admin-locations"] });
+      qc.invalidateQueries({ queryKey: ["locations"] });
+      qc.invalidateQueries({ queryKey: ["captain-locations"] });
+    },
     onError: (e: Error, _id, ctx) => {
       toast.error(e.message);
       if (ctx?.prev) qc.setQueryData(["admin-locations"], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["admin-locations"] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["admin-locations"] });
+      qc.invalidateQueries({ queryKey: ["locations"] });
+      qc.invalidateQueries({ queryKey: ["captain-locations"] });
+    },
   });
 
   // Manual occupied/free override — fixes a stuck table without going via cashier.

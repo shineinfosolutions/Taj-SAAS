@@ -9,7 +9,8 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "seed-inventory": "tsx scripts/seed-inventory.ts",
-    "generate-qr": "tsx scripts/generate-qr.ts"
+    "generate-qr": "tsx scripts/generate-qr.ts",
+    "clear-orders": "tsx scripts/clear-all-orders.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

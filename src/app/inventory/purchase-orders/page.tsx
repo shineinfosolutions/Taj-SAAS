@@ -13,7 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/Pill";
 import ItemCombo from "@/components/inventory/ItemCombo";
+import DateRangeFilter, {
+  type DateRange,
+} from "@/components/inventory/DateRangeFilter";
 import { exportXlsx } from "@/lib/inventory/sheet";
+import { formatPrice } from "@/lib/utils";
 
 const PO_PAGE = 15;
 const PO_STATUSES = ["all", "draft", "sent", "partially_received", "received", "cancelled"];
@@ -75,12 +79,39 @@ export default function PurchaseOrdersPage() {
   const [receivePO, setReceivePO] = useState<PO | null>(null);
   const [recvQty, setRecvQty] = useState<Record<string, number>>({});
   const [statusFilter, setStatusFilter] = useState("all");
+  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [dateRange, setDateRange] = useState<DateRange>({ from: "", to: "", preset: "all" });
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
 
-  const view = useMemo(
-    () => (statusFilter === "all" ? pos : pos.filter((p) => p.status === statusFilter)),
-    [pos, statusFilter],
-  );
+  const view = useMemo(() => {
+    let r = pos;
+    if (statusFilter !== "all") {
+      r = r.filter((p) => p.status === statusFilter);
+    }
+    if (supplierFilter !== "all") {
+      r = r.filter(
+        (p) =>
+          p.supplierId === supplierFilter ||
+          p.supplierName?.toLowerCase() === supplierFilter.toLowerCase(),
+      );
+    }
+    if (dateRange.from) {
+      r = r.filter((p) => p.createdAt.slice(0, 10) >= dateRange.from);
+    }
+    if (dateRange.to) {
+      r = r.filter((p) => p.createdAt.slice(0, 10) <= dateRange.to);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      r = r.filter(
+        (p) =>
+          p.poNumber.toLowerCase().includes(q) ||
+          p.supplierName?.toLowerCase().includes(q),
+      );
+    }
+    return r;
+  }, [pos, statusFilter, supplierFilter, dateRange, searchQuery]);
   const paged = view.slice((page - 1) * PO_PAGE, page * PO_PAGE);
 
   const { data: lowStock } = useQuery<{
@@ -234,22 +265,88 @@ export default function PurchaseOrdersPage() {
         ]}
       />
 
-      <div className="flex items-center gap-2 mb-3">
-        <select
-          className="select select-bordered select-sm"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
+      {/* ── Summary Stats Bar ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+        <div className="p-3 rounded-xl bg-base-200 border border-base-300/60">
+          <p className="text-xs text-base-content/60 font-medium">Total Orders</p>
+          <p className="text-lg font-black mt-0.5">{view.length}</p>
+        </div>
+        <div className="p-3 rounded-xl bg-base-200 border border-base-300/60">
+          <p className="text-xs text-base-content/60 font-medium">Total PO Value</p>
+          <p className="text-lg font-black text-primary mt-0.5">
+            {formatPrice(view.reduce((acc, p) => acc + p.total, 0))}
+          </p>
+        </div>
+        <div className="p-3 rounded-xl bg-base-200 border border-base-300/60">
+          <p className="text-xs text-base-content/60 font-medium">Received</p>
+          <p className="text-lg font-black text-success mt-0.5">
+            {view.filter((p) => p.status === "received").length}
+          </p>
+        </div>
+        <div className="p-3 rounded-xl bg-base-200 border border-base-300/60">
+          <p className="text-xs text-base-content/60 font-medium">Pending / Partial</p>
+          <p className="text-lg font-black text-warning mt-0.5">
+            {view.filter((p) => ["draft", "sent", "partially_received"].includes(p.status)).length}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Filter Bar: Supplier, Status, Search, Date Range ── */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Supplier Filter */}
+          <select
+            className="select select-bordered select-sm max-w-[180px]"
+            value={supplierFilter}
+            onChange={(e) => {
+              setSupplierFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">🏢 All Suppliers</option>
+            {suppliers.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Status Filter */}
+          <select
+            className="select select-bordered select-sm"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            {PO_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s === "all" ? "All statuses" : s.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+
+          {/* Search PO / Supplier */}
+          <Input
+            className="w-36 sm:w-44 h-8 text-xs"
+            placeholder="Search PO / Supplier…"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          value={dateRange}
+          onChange={(r) => {
+            setDateRange(r);
             setPage(1);
           }}
-        >
-          {PO_STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s === "all" ? "All statuses" : s.replace("_", " ")}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-base-content/40">{view.length} orders</span>
+        />
       </div>
 
       <div className="rounded-2xl bg-base-200 border border-base-300/60 overflow-hidden">

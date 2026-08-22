@@ -33,6 +33,7 @@ interface InvItem {
 }
 interface Line {
   inventoryItemId: string;
+  customItemName?: string;
   qty: number;
   unit: string;
   reason: string;
@@ -73,16 +74,13 @@ export default function WastagePage() {
 
   const addLine = () => {
     const f = items[0];
-    if (!f) {
-      toast.error("Add ingredients first");
-      return;
-    }
     setLines([
       ...lines,
       {
-        inventoryItemId: f._id,
+        inventoryItemId: f?._id || "custom",
+        customItemName: !f ? "New Item" : undefined,
         qty: 0,
-        unit: UNITS_BY_TYPE[f.measureType][0],
+        unit: f ? UNITS_BY_TYPE[f.measureType][0] : "pcs",
         reason: "spoilage",
       },
     ]);
@@ -126,19 +124,41 @@ export default function WastagePage() {
       <div className="rounded-2xl bg-base-200 border border-base-300/60 p-4 space-y-3">
         {lines.map((l, i) => {
           const item = items.find((x) => x._id === l.inventoryItemId);
-          const units = item ? UNITS_BY_TYPE[item.measureType] : [l.unit];
+          const isCustom = l.inventoryItemId === "custom" || (!item && !!l.customItemName);
+          const units = item ? UNITS_BY_TYPE[item.measureType] : ["pcs", "kg", "g", "ltr", "ml", "pack"];
           return (
-            <div key={i} className="flex items-center gap-2">
+            <div key={i} className="flex flex-wrap sm:flex-nowrap items-center gap-2">
               <ItemCombo
-                className="flex-1"
-                value={l.inventoryItemId}
+                className="flex-1 min-w-[180px]"
+                allowCustom
+                value={isCustom ? (l.customItemName || "") : l.inventoryItemId}
                 onChange={(v) => {
                   const it = items.find((x) => x._id === v);
                   const n = [...lines];
+                  if (it) {
+                    n[i] = {
+                      ...l,
+                      inventoryItemId: it._id,
+                      customItemName: undefined,
+                      unit: UNITS_BY_TYPE[it.measureType][0],
+                    };
+                  } else {
+                    n[i] = {
+                      ...l,
+                      inventoryItemId: "custom",
+                      customItemName: v,
+                      unit: l.unit || "pcs",
+                    };
+                  }
+                  setLines(n);
+                }}
+                onAddCustom={(name) => {
+                  const n = [...lines];
                   n[i] = {
                     ...l,
-                    inventoryItemId: v,
-                    unit: it ? UNITS_BY_TYPE[it.measureType][0] : l.unit,
+                    inventoryItemId: "custom",
+                    customItemName: name,
+                    unit: l.unit || "pcs",
                   };
                   setLines(n);
                 }}
@@ -146,8 +166,9 @@ export default function WastagePage() {
               />
               <Input
                 type="number"
-                className="w-20"
-                value={l.qty}
+                className="w-24"
+                placeholder="qty"
+                value={l.qty || ""}
                 onChange={(e) => {
                   const n = [...lines];
                   n[i] = { ...l, qty: Number(e.target.value) };
@@ -155,7 +176,7 @@ export default function WastagePage() {
                 }}
               />
               <select
-                className="select select-bordered select-sm w-20"
+                className="select select-bordered select-sm w-24"
                 value={l.unit}
                 onChange={(e) => {
                   const n = [...lines];

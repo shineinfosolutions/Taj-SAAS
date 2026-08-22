@@ -5,6 +5,9 @@ export interface ICaptainCallDoc extends Document {
   tableLabel: string;
   locationCode: string;
   isGeneric?: boolean; // true when called without a specific location
+  callType?: "call" | "order_ready" | "self_order";
+  message?: string;
+  kotNumber?: string;
   status: "pending" | "acknowledged";
   createdAt: Date;
   acknowledgedAt?: Date;
@@ -16,6 +19,13 @@ const CaptainCallSchema = new Schema<ICaptainCallDoc>(
     tableLabel: { type: String, required: true },
     locationCode: { type: String, required: false, default: "" },
     isGeneric: { type: Boolean, default: false },
+    callType: {
+      type: String,
+      enum: ["call", "order_ready", "self_order"],
+      default: "call",
+    },
+    message: { type: String },
+    kotNumber: { type: String },
     status: {
       type: String,
       enum: ["pending", "acknowledged"],

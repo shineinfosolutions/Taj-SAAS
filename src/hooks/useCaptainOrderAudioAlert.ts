@@ -80,6 +80,7 @@ function playSynthesizedChime() {
 export function useCaptainOrderAudioAlert() {
   const isFirstPoll = useRef(true);
   const knownOrderIds = useRef<Set<string>>(new Set());
+  const knownReadyOrderIds = useRef<Set<string>>(new Set());
   const setStep = useCaptainStore((s) => s.setStep);
   const selectTable = useCaptainStore((s) => s.selectTable);
 
@@ -117,12 +118,51 @@ export function useCaptainOrderAudioAlert() {
 
       // On initial load, record current orders without beeping
       if (isFirstPoll.current) {
-        orders.forEach((o) => knownOrderIds.current.add(o._id));
+        orders.forEach((o) => {
+          knownOrderIds.current.add(o._id);
+          if (o.status === "ready" || o.status === "partially_ready") {
+            knownReadyOrderIds.current.add(o._id);
+          }
+        });
         isFirstPoll.current = false;
         return;
       }
 
-      // Check for genuinely new orders
+      // Check for freshly prepared / ready orders from kitchen
+      const freshlyPreparedOrders = orders.filter(
+        (o) =>
+          (o.status === "ready" || o.status === "partially_ready") &&
+          !knownReadyOrderIds.current.has(o._id),
+      );
+
+      if (freshlyPreparedOrders.length > 0) {
+        playLoudOrderChime();
+        freshlyPreparedOrders.forEach((order) => {
+          knownReadyOrderIds.current.add(order._id);
+          toast.success(`🍲 Food Prepared! Ready to Serve`, {
+            description: `Table ${order.tableLabel} · KOT #${order.kotNumber} is freshly prepared & ready in kitchen!`,
+            duration: 10000,
+            action: {
+              label: "Serve Table",
+              onClick: () => {
+                selectTable({
+                  _id: String(order.tableId),
+                  code: order.tableLabel,
+                  label: order.tableLabel,
+                  type: "table",
+                  isActive: true,
+                  isOccupied: true,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
+                setStep("active_orders");
+              },
+            },
+          });
+        });
+      }
+
+      // Check for genuinely new incoming orders
       const newOrders = orders.filter((o) => !knownOrderIds.current.has(o._id));
 
       if (newOrders.length > 0) {
@@ -131,6 +171,9 @@ export function useCaptainOrderAudioAlert() {
 
         newOrders.forEach((order) => {
           knownOrderIds.current.add(order._id);
+          if (order.status === "ready" || order.status === "partially_ready") {
+            knownReadyOrderIds.current.add(order._id);
+          }
           const isSelfOrder =
             order.status === "pending_captain" ||
             order.isCaptainConfirmed === false ||
@@ -166,6 +209,12 @@ export function useCaptainOrderAudioAlert() {
       // Sync known IDs with active set
       const activeIds = new Set(orders.map((o) => o._id));
       knownOrderIds.current = activeIds;
+      const activeReadyIds = new Set(
+        orders
+          .filter((o) => o.status === "ready" || o.status === "partially_ready")
+          .map((o) => o._id),
+      );
+      knownReadyOrderIds.current = activeReadyIds;
     } catch {}
   }, [selectTable, setStep]);
 

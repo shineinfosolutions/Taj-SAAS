@@ -10,7 +10,9 @@ export async function GET() {
   const g = await requireInventory();
   if (g instanceof NextResponse) return g;
   await connectDB();
-  const suppliers = await Supplier.find({}).sort({ name: 1 }).lean();
+  const suppliers = await Supplier.find({ isActive: { $ne: false } })
+    .sort({ name: 1 })
+    .lean();
 
   // Outstanding due = received (GRN) − paid − returned, per supplier.
   const [grn, paid, returned] = await Promise.all([

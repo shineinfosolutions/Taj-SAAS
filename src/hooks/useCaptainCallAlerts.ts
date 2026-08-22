@@ -7,6 +7,9 @@ export interface CaptainCallAlert {
   tableId: string;
   tableLabel: string;
   isGeneric?: boolean;
+  callType?: "call" | "order_ready" | "self_order";
+  message?: string;
+  kotNumber?: string;
   createdAt: string;
 }
 

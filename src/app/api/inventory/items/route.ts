@@ -8,7 +8,7 @@ export async function GET() {
   const g = await requireInventory();
   if (g instanceof NextResponse) return g;
   await connectDB();
-  const items = await InventoryItem.find({})
+  const items = await InventoryItem.find({ isActive: { $ne: false } })
     .sort({ category: 1, name: 1 })
     .lean();
   return NextResponse.json(items);

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Location from "@/lib/db/models/Location";
 import Order from "@/lib/db/models/Order";
+import CaptainCall from "@/lib/db/models/CaptainCall";
 import { LocationSchema } from "@/lib/validations";
 
 type Params = { params: Promise<{ id: string }> };
@@ -66,18 +67,24 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   await connectDB();
 
-  // Block deletion while live orders sit on the table — deleting it would orphan
-  // those orders and silently break every isOccupied update for them.
-  const activeOrders = await Order.exists({
-    tableId: id,
-    status: { $nin: ["cleared", "paid", "cancelled"] },
-  });
-  if (activeOrders) {
-    return NextResponse.json(
-      { error: "Table has active orders — clear or void them first." },
-      { status: 409 },
-    );
+  const loc = await Location.findById(id);
+  if (!loc) {
+    return NextResponse.json({ ok: true });
   }
+
+  // Cancel any lingering un-closed orders for this table so they don't orphan or block
+  await Order.updateMany(
+    {
+      tableId: id,
+      status: { $nin: ["cleared", "paid", "cancelled"] },
+    },
+    { $set: { status: "cancelled" } },
+  );
+
+  // Clean up any CaptainCalls associated with this location
+  await CaptainCall.deleteMany({
+    $or: [{ locationCode: loc.code }, { locationCode: loc.label }],
+  });
 
   await Location.findByIdAndDelete(id);
   return NextResponse.json({ ok: true });

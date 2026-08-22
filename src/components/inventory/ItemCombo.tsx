@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronsUpDown, Check, Search } from "lucide-react";
+import { ChevronsUpDown, Check, Search, Plus } from "lucide-react";
 
 export interface ComboOption {
   value: string;
@@ -11,8 +11,7 @@ export interface ComboOption {
 
 /**
  * Lightweight searchable picker (combobox) for choosing an ingredient/option
- * from a long list. Type to filter, click to select. Used across inventory
- * forms so staff don't scroll a 30-item dropdown.
+ * from a long list. Type to filter, click to select, or add custom on the fly.
  */
 export default function ItemCombo({
   options,
@@ -20,12 +19,16 @@ export default function ItemCombo({
   onChange,
   placeholder = "Select…",
   className = "",
+  allowCustom = false,
+  onAddCustom,
 }: {
   options: ComboOption[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  allowCustom?: boolean;
+  onAddCustom?: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -33,6 +36,17 @@ export default function ItemCombo({
   const filtered = q
     ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase()))
     : options;
+
+  const handleAddCustom = () => {
+    if (!q.trim()) return;
+    if (onAddCustom) {
+      onAddCustom(q.trim());
+    } else {
+      onChange(q.trim());
+    }
+    setOpen(false);
+    setQ("");
+  };
 
   return (
     <div className={`relative ${className}`}>
@@ -42,7 +56,7 @@ export default function ItemCombo({
         className="input input-bordered input-sm w-full flex items-center justify-between gap-2 text-left"
       >
         <span className={selected ? "truncate" : "text-base-content/40 truncate"}>
-          {selected ? selected.label : placeholder}
+          {selected ? selected.label : value || placeholder}
         </span>
         <ChevronsUpDown className="w-3.5 h-3.5 opacity-50 shrink-0" />
       </button>
@@ -63,10 +77,20 @@ export default function ItemCombo({
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
+                placeholder="Search or type new item…"
                 className="w-full py-2 text-sm bg-transparent focus:outline-none"
               />
             </div>
+            {allowCustom && q.trim() && !options.some((o) => o.label.toLowerCase() === q.trim().toLowerCase()) && (
+              <button
+                type="button"
+                onClick={handleAddCustom}
+                className="w-full text-left px-3 py-2 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 flex items-center gap-1.5 border-b border-base-300"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add &quot;{q.trim()}&quot; as new item</span>
+              </button>
+            )}
             {filtered.map((o) => (
               <button
                 key={o.value}
@@ -89,7 +113,7 @@ export default function ItemCombo({
                 </span>
               </button>
             ))}
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !allowCustom && (
               <p className="px-3 py-3 text-sm text-base-content/40">No match</p>
             )}
           </div>

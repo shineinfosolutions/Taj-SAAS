@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect, forwardRef } from "react";
 import HTMLFlipBook from "react-pageflip";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart, RotateCcw, Sparkles, BellRing, X } from "lucide-react";
+import { ShoppingCart, RotateCcw, BellRing, X, ArrowLeft } from "lucide-react";
 import { useCartStore } from "@/store/cart";
 import { menuThemeVars } from "@/lib/menu-theme";
 import CoverPage from "./CoverPage";
@@ -14,7 +14,6 @@ import BackCoverPage from "./BackCoverPage";
 import FlipControls from "./FlipControls";
 import TabletCartPanel from "./TabletCartPanel";
 import TabletFloatingButtons from "./TabletFloatingButtons";
-import TabletOnboardingWizard from "./TabletOnboardingWizard";
 import TabletVideoModal from "./TabletVideoModal";
 import { useFlyToCartStore } from "@/store/flyToCart";
 import FlyToCartOverlay from "@/components/menu/FlyToCartOverlay";
@@ -63,7 +62,6 @@ export default function TabletMenuShell({
   const flipBookRef = useRef<any>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
-  const [wizardOpen, setWizardOpen] = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 550, height: 780 });
   const [flipbookReady, setFlipbookReady] = useState(false);
@@ -417,44 +415,32 @@ export default function TabletMenuShell({
         onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Reload */}
-        <motion.button
-          whileTap={{ scale: 0.85, rotate: -180 }}
-          transition={{ duration: 0.35 }}
-          onClick={() => window.location.reload()}
-          className={`w-11 h-11 rounded-full flex items-center justify-center cursor-pointer touch-manipulation ${FOCUS_RING}`}
-          style={{
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(203, 213, 225, 0.8)",
-            boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
-          }}
-          title="Reload app"
-          aria-label="Reload menu"
-        >
-          <RotateCcw
-            className="w-4 h-4 text-slate-700"
-          />
-        </motion.button>
-
-        {/* New User Wizard */}
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={() => {
-            flipBookRef.current?.pageFlip().turnToPage(0);
-            setWizardOpen(true);
-          }}
-          className={`flex items-center gap-1.5 px-3.5 h-11 rounded-full text-xs font-bold cursor-pointer touch-manipulation text-slate-800 ${FOCUS_RING}`}
-          style={{
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(12px)",
-            border: "1px solid rgba(217, 119, 6, 0.4)",
-            boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
-          }}
-          aria-label="Show how-to-use guide"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" /> New User
-        </motion.button>
+        {/* Back to Menu Button (Only visible once menu is opened, hidden on Cover page) */}
+        {currentPage > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.03 }}
+            onClick={() => {
+              const menuIndex = pages.findIndex((p) => p.type === "index");
+              goToPage(menuIndex !== -1 ? menuIndex : 2);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 h-11 rounded-full text-xs font-bold cursor-pointer touch-manipulation text-slate-800 ${FOCUS_RING}`}
+            style={{
+              background: "rgba(255,255,255,0.92)",
+              backdropFilter: "blur(12px)",
+              border: "1px solid rgba(217, 119, 6, 0.4)",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+            }}
+            title="Back to Menu"
+            aria-label="Back to Menu"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-600" />
+            <span>Back to Menu</span>
+          </motion.button>
+        )}
 
         {/* Cart */}
         <motion.button
@@ -628,13 +614,6 @@ export default function TabletMenuShell({
         branding={branding}
         mode={mode}
         locationCode={currentLocation?.code || location?.code || null}
-      />
-
-      {/* ── Onboarding Wizard ────────────────────────────────────────── */}
-      <TabletOnboardingWizard
-        key={String(wizardOpen)}
-        forceShow={wizardOpen}
-        onClose={() => setWizardOpen(false)}
       />
 
       {/* ── Dish Video Player ────────────────────────────────────────── */}

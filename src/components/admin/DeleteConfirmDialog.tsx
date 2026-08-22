@@ -32,22 +32,32 @@ export default function DeleteConfirmDialog({
 }: DeleteConfirmDialogProps) {
   return (
     <AlertDialog>
-      <AlertDialogTrigger
-        render={
-          trigger ? (
-            <span />
-          ) : (
+      {trigger ? (
+        <AlertDialogTrigger
+          render={
+            <button
+              type="button"
+              className="contents cursor-pointer"
+              disabled={isPending}
+            />
+          }
+        >
+          {trigger}
+        </AlertDialogTrigger>
+      ) : (
+        <AlertDialogTrigger
+          render={
             <Button
               variant="ghost"
               size="icon-xs"
               className="text-destructive hover:text-destructive"
               disabled={isPending}
             />
-          )
-        }
-      >
-        {trigger ?? <Trash2 className="w-3.5 h-3.5" />}
-      </AlertDialogTrigger>
+          }
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent size="sm">
         <AlertDialogHeader>
           <AlertDialogMedia>

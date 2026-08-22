@@ -13,6 +13,7 @@ import { checkDiscountAllowed } from "@/lib/discount-guard";
 
 import bcrypt from "bcryptjs";
 import Staff from "@/lib/db/models/Staff";
+import CaptainCall from "@/lib/db/models/CaptainCall";
 
 // Branding fields needed to price + police a bill discount.
 const BILLING_SELECT =
@@ -1076,6 +1077,22 @@ export async function PATCH(
           }
         }
       });
+
+      // Alert Captains when kitchen marks order ready
+      if (newStatus === "ready" || newStatus === "partially_ready") {
+        try {
+          await CaptainCall.create({
+            tableId: String(order.tableId),
+            tableLabel: order.tableLabel,
+            callType: "order_ready",
+            kotNumber: order.kotNumber,
+            message: `Table ${order.tableLabel}: KOT #${order.kotNumber} is Prepared & Ready to Serve!`,
+            status: "pending",
+          });
+        } catch (e) {
+          console.warn("CaptainCall notification for ready order notice:", e);
+        }
+      }
 
       return NextResponse.json({ success: true });
     }

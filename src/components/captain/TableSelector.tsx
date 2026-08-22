@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Users, Clock, BellRing, Utensils } from "lucide-react";
+import { Users, Clock, BellRing, Utensils, ChefHat, Sparkles } from "lucide-react";
 import { useCaptainStore } from "@/store/captain";
 import type { ILocation, IOrder } from "@/types";
 
@@ -44,9 +44,21 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
   // Index orders by tableId
   const pendingSelfOrdersByTable = new Map<string, IOrder[]>();
   const runningOrdersByTable = new Map<string, IOrder[]>();
+  const preparedOrdersByTable = new Map<string, IOrder[]>();
 
   allOrders.forEach((o) => {
     const tId = String(o.tableId);
+    const isPrepared =
+      o.status === "ready" ||
+      o.status === "partially_ready" ||
+      (Array.isArray(o.items) && o.items.some((it) => it.itemStatus === "ready"));
+
+    if (isPrepared) {
+      const cur = preparedOrdersByTable.get(tId) || [];
+      cur.push(o);
+      preparedOrdersByTable.set(tId, cur);
+    }
+
     if (o.status === "pending_captain" || o.isCaptainConfirmed === false) {
       const cur = pendingSelfOrdersByTable.get(tId) || [];
       cur.push(o);
@@ -88,6 +100,7 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
       !runningOrdersByTable.has(String(t._id)),
   );
   const orderedCount = Array.from(pendingSelfOrdersByTable.keys()).length;
+  const preparedCount = Array.from(preparedOrdersByTable.keys()).length;
   const occupied = list.filter(
     (t) =>
       t.isOccupied ||
@@ -98,11 +111,12 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
   const handleTableClick = (table: ILocation) => {
     const hasPending = pendingSelfOrdersByTable.has(String(table._id));
     const hasRunning = runningOrdersByTable.has(String(table._id));
+    const hasPrepared = preparedOrdersByTable.has(String(table._id));
 
     onSelectTable(table);
 
-    // If table has orders or self-orders, go directly to active_orders view
-    if (hasPending || hasRunning || table.isOccupied) {
+    // If table has orders, go directly to active_orders view
+    if (hasPending || hasRunning || hasPrepared || table.isOccupied) {
       setStep("active_orders");
     } else {
       setStep("order_build");
@@ -120,35 +134,49 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
   return (
     <div className="space-y-6">
       {/* Stats Header */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="stat bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="stat bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm">
           <div className="stat-figure text-emerald-700">
-            <Users className="w-6 h-6" />
+            <Users className="w-5 h-5" />
           </div>
           <div className="stat-title text-xs font-black uppercase tracking-wider text-slate-600">Free Tables</div>
-          <div className="stat-value text-emerald-800 text-3xl font-mono font-black">{free.length}</div>
+          <div className="stat-value text-emerald-800 text-2xl font-mono font-black">{free.length}</div>
         </div>
 
         <div
-          className={`stat rounded-2xl border p-4 transition-all shadow-md ${
+          className={`stat rounded-2xl border p-3.5 transition-all shadow-md ${
+            preparedCount > 0
+              ? "bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-500 animate-pulse text-emerald-950 ring-2 ring-emerald-400/40"
+              : "bg-white border-slate-200"
+          }`}
+        >
+          <div className="stat-figure text-emerald-600">
+            <ChefHat className={`w-5 h-5 ${preparedCount > 0 ? "animate-bounce" : ""}`} />
+          </div>
+          <div className="stat-title text-xs font-black uppercase tracking-wider text-emerald-950">Food Prepared</div>
+          <div className="stat-value text-emerald-800 text-2xl font-mono font-black">{preparedCount}</div>
+        </div>
+
+        <div
+          className={`stat rounded-2xl border p-3.5 transition-all shadow-md ${
             orderedCount > 0
               ? "bg-gradient-to-br from-amber-50 to-amber-100/90 border-2 border-amber-400 animate-pulse text-amber-950"
               : "bg-white border-slate-200"
           }`}
         >
           <div className="stat-figure text-amber-600">
-            <BellRing className={`w-6 h-6 ${orderedCount > 0 ? "animate-bounce" : ""}`} />
+            <BellRing className={`w-5 h-5 ${orderedCount > 0 ? "animate-bounce" : ""}`} />
           </div>
           <div className="stat-title text-xs font-black uppercase tracking-wider text-amber-950">Ordered (Verify)</div>
-          <div className="stat-value text-amber-800 text-3xl font-mono font-black">{orderedCount}</div>
+          <div className="stat-value text-amber-800 text-2xl font-mono font-black">{orderedCount}</div>
         </div>
 
-        <div className="stat bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+        <div className="stat bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm">
           <div className="stat-figure text-rose-700">
-            <Clock className="w-6 h-6" />
+            <Clock className="w-5 h-5" />
           </div>
           <div className="stat-title text-xs font-black uppercase tracking-wider text-slate-600">Occupied</div>
-          <div className="stat-value text-rose-800 text-3xl font-mono font-black">{occupied.length}</div>
+          <div className="stat-value text-rose-800 text-2xl font-mono font-black">{occupied.length}</div>
         </div>
       </div>
 
@@ -159,11 +187,12 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
           <p className="text-sm mt-1 text-slate-600 font-medium">Ask admin to add table locations.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
           {list.map((table, i) => {
+            const hasPrepared = preparedOrdersByTable.has(String(table._id));
             const hasSelfOrder = pendingSelfOrdersByTable.has(String(table._id));
             const hasRunning = runningOrdersByTable.has(String(table._id));
-            const isOcc = table.isOccupied || hasRunning;
+            const isOcc = table.isOccupied || hasRunning || hasPrepared;
 
             let cardStyle = "bg-emerald-50/90 border-2 border-emerald-300 hover:bg-emerald-100/90 shadow-sm";
             let statusBadge = (
@@ -173,7 +202,16 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
             );
             let dotColor = "bg-emerald-600";
 
-            if (hasSelfOrder) {
+            if (hasPrepared) {
+              cardStyle =
+                "bg-gradient-to-br from-emerald-100 to-emerald-200 border-2 border-emerald-500 shadow-xl ring-4 ring-emerald-500/35 hover:bg-emerald-200";
+              statusBadge = (
+                <span className="text-xs font-black text-emerald-950 bg-emerald-300 border border-emerald-500 px-2.5 py-0.5 rounded-lg tracking-tight animate-bounce flex items-center gap-1">
+                  🍲 Food Prepared!
+                </span>
+              );
+              dotColor = "bg-emerald-600 animate-ping";
+            } else if (hasSelfOrder) {
               cardStyle =
                 "bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-400 shadow-md ring-4 ring-amber-400/25 hover:bg-amber-100";
               statusBadge = (
@@ -210,11 +248,15 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
                 {/* Status Dot / Indicator */}
                 <span className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${dotColor}`} />
 
-                {hasSelfOrder && (
+                {hasPrepared ? (
+                  <span className="absolute top-2 left-2 text-[10px] bg-emerald-600 text-white font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-md animate-pulse">
+                    <ChefHat className="w-3 h-3" /> PREPARED
+                  </span>
+                ) : hasSelfOrder ? (
                   <span className="absolute top-2 left-2 text-[10px] bg-amber-500 text-white font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
                     <BellRing className="w-3 h-3" /> NEW
                   </span>
-                )}
+                ) : null}
 
                 {/* Table Code in Deep High-Contrast Obsidian Black */}
                 <span className="text-2xl sm:text-3xl font-black font-mono text-slate-950 mt-1 tracking-tight">

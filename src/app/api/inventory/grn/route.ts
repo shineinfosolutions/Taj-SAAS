@@ -45,7 +45,29 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const built: any[] = [];
   for (const l of body.lines) {
-    const item = await InventoryItem.findById(l.inventoryItemId);
+    let item: any = null;
+    if (l.inventoryItemId && l.inventoryItemId !== "custom") {
+      item = await InventoryItem.findById(l.inventoryItemId);
+    }
+    if (!item && (l.customItemName || l.name)) {
+      const customName = (l.customItemName || l.name).trim();
+      if (customName) {
+        item = await InventoryItem.findOne({
+          name: new RegExp(`^${customName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+        });
+        if (!item) {
+          item = await InventoryItem.create({
+            name: customName,
+            measureType: "count",
+            stockUnit: l.unit || "pcs",
+            purchaseUnit: l.unit || "pcs",
+            purchaseToStock: 1,
+            defaultSupplierId: supplier._id,
+            isActive: true,
+          });
+        }
+      }
+    }
     if (!item) continue;
     const qtyReceived = Number(l.qtyReceived) || 0;
     if (qtyReceived <= 0) continue;

@@ -17,27 +17,50 @@ export default function CaptainCallPopup() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 80, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="pointer-events-auto bg-warning text-warning-content rounded-2xl shadow-2xl border border-warning/50 overflow-hidden"
+            className={`pointer-events-auto rounded-2xl shadow-2xl overflow-hidden border ${
+              alert.callType === "order_ready"
+                ? "bg-emerald-600 text-white border-emerald-400/50"
+                : "bg-warning text-warning-content border-warning/50"
+            }`}
           >
             {/* Pulsing top bar */}
-            <div className="h-1 bg-warning-content/30 animate-pulse" />
+            <div
+              className={`h-1 animate-pulse ${
+                alert.callType === "order_ready"
+                  ? "bg-white/40"
+                  : "bg-warning-content/30"
+              }`}
+            />
 
             <div className="px-4 py-3">
               <div className="flex items-start gap-3">
-                <div className="shrink-0 mt-0.5 bg-warning-content/20 rounded-full p-2">
+                <div
+                  className={`shrink-0 mt-0.5 rounded-full p-2 ${
+                    alert.callType === "order_ready"
+                      ? "bg-white/20 text-white"
+                      : "bg-warning-content/20"
+                  }`}
+                >
                   <BellRing className="w-5 h-5 animate-bounce" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm leading-tight">
-                    {alert.isGeneric
-                      ? "Guest Needs Attention!"
-                      : "Table Calling!"}
+                  <p className="font-bold text-xs uppercase tracking-wider opacity-90 leading-tight">
+                    {alert.callType === "order_ready"
+                      ? "🍲 Food Prepared! Ready"
+                      : alert.isGeneric
+                        ? "Guest Needs Attention!"
+                        : "Table Calling!"}
                   </p>
                   <p className="text-lg font-extrabold mt-0.5">
                     {alert.isGeneric
                       ? "👤 Someone needs help"
                       : `🪑 ${alert.tableLabel}`}
                   </p>
+                  {alert.message && (
+                    <p className="text-xs font-medium opacity-90 mt-0.5">
+                      {alert.message}
+                    </p>
+                  )}
                   <p className="text-xs opacity-70 mt-1">
                     {new Date(alert.createdAt).toLocaleTimeString("en-IN", {
                       hour: "2-digit",
@@ -55,10 +78,14 @@ export default function CaptainCallPopup() {
 
               <button
                 onClick={() => dismiss(alert._id)}
-                className="btn btn-sm w-full mt-3 bg-warning-content/20 hover:bg-warning-content/30 border-none font-semibold gap-2"
+                className={`btn btn-sm w-full mt-3 border-none font-bold gap-2 ${
+                  alert.callType === "order_ready"
+                    ? "bg-white text-emerald-800 hover:bg-white/90"
+                    : "bg-warning-content/20 hover:bg-warning-content/30"
+                }`}
               >
                 <CheckCheck className="w-4 h-4" />
-                On My Way
+                {alert.callType === "order_ready" ? "Serve to Table" : "On My Way"}
               </button>
             </div>
           </motion.div>

@@ -55,19 +55,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   await connectDB();
 
-  // Preserve the audit trail — a staffer who ever placed an order can't be hard
-  // deleted (it would orphan the required captainId ref). Deactivate instead.
-  const hasOrders = await Order.exists({ captainId: id });
-  if (hasOrders) {
-    return NextResponse.json(
-      {
-        error:
-          "This staff member has order history. Deactivate them instead of deleting.",
-      },
-      { status: 409 },
-    );
-  }
-
   await Staff.findByIdAndDelete(id);
   return NextResponse.json({ ok: true });
 }
