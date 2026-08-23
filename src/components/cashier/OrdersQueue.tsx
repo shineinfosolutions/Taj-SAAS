@@ -148,8 +148,6 @@ export default function OrdersQueue() {
                 !activeItems.every((i) => i.itemStatus === "delivered")
               );
             });
-            const canCollect = pendingKots.length === 0;
-
             return (
               <motion.div
                 key={table.tableId}
@@ -207,15 +205,9 @@ export default function OrdersQueue() {
                     <span className="opacity-70">Subtotal</span>
                     <span>{formatPrice(table.subtotal)}</span>
                   </div>
-                  {table.discount > 0 && (
-                    <div className="flex justify-between text-success">
-                      <span>Discount</span>
-                      <span>-{formatPrice(table.discount)}</span>
-                    </div>
-                  )}
                   {table.tax > 0 && (
                     <div className="flex justify-between opacity-70">
-                      <span>GST (5%)</span>
+                      <span>GST</span>
                       <span>{formatPrice(table.tax)}</span>
                     </div>
                   )}
