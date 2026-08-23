@@ -181,8 +181,7 @@ function ItemCard({
                   {formatPrice(item.price)}
                 </span>
                 <span
-                  className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
-                  style={{ background: "rgba(34,197,94,0.18)", color: "#4ade80" }}
+                  className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200"
                 >
                   {Math.round(
                     ((item.price - item.discountPrice) / item.price) * 100,
@@ -699,33 +698,20 @@ export default function MobileMenuShell({
               }}
             >
               <div
-                className="px-4 py-3 flex items-center gap-2"
-                style={{
-                  background: "rgba(20,20,20,0.95)",
-                  backdropFilter: "blur(8px)",
-                  borderBottom: "1px solid var(--menu-border)",
-                  position: "sticky",
-                  top: 0,
-                  zIndex: 10,
-                }}
+                className="px-4 py-2.5 flex items-center gap-2 border-y border-amber-900/10 bg-amber-50/80 backdrop-blur-sm"
               >
                 {cat.iconEmoji && (
-                  <span className="text-lg">{cat.iconEmoji}</span>
+                  <span className="text-base">{cat.iconEmoji}</span>
                 )}
                 <h2
-                  className="text-base font-bold"
-                  style={{ letterSpacing: "0.01em" }}
+                  className="text-sm font-extrabold tracking-wide uppercase text-amber-950 font-playfair"
                 >
                   {cat.name}
                 </h2>
                 <span
-                  className="ml-auto text-xs px-2 py-0.5 rounded-full tabular-nums"
-                  style={{
-                    background: "var(--menu-surface-2)",
-                    color: "var(--menu-text-muted)",
-                  }}
+                  className="ml-auto text-[11px] font-bold px-2.5 py-0.5 rounded-full tabular-nums bg-amber-100 text-amber-950 border border-amber-300/70 shadow-xs"
                 >
-                  {cat.items.filter((i) => i.isAvailable).length}
+                  {cat.items.filter((i) => i.isAvailable).length} items
                 </span>
               </div>
               {cat.items

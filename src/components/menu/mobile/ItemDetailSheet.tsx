@@ -63,18 +63,18 @@ export default function ItemDetailSheet({
               paddingBottom: "env(safe-area-inset-bottom)",
             }}
           >
-            {/* Grabber + close */}
-            <div className="relative flex justify-center pt-2.5 pb-1 shrink-0">
+            {/* Grabber + Header Close */}
+            <div className="relative flex items-center justify-between px-5 pt-3 pb-2 shrink-0">
+              <div className="w-8" />
               <div
-                className="w-10 h-1 rounded-full"
-                style={{ background: "var(--menu-surface-2)" }}
+                className="w-12 h-1.5 rounded-full bg-slate-300"
               />
               <button
                 onClick={onClose}
                 aria-label="Close details"
-                className="absolute right-2 top-1 w-11 h-11 flex items-center justify-center rounded-full cursor-pointer touch-manipulation active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 shadow-xs cursor-pointer touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--menu-accent)]/70"
               >
-                <X className="w-5 h-5" style={{ color: "var(--menu-text)" }} />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -125,8 +125,7 @@ export default function ItemDetailSheet({
                   <FssaiDot isVeg={item.isVegetarian} size="md" />
                 </span>
                 <h2
-                  className="text-lg font-bold leading-snug flex-1"
-                  style={{ color: "var(--menu-text)" }}
+                  className="text-lg font-bold leading-snug flex-1 text-slate-900"
                 >
                   {item.name}
                 </h2>
@@ -149,8 +148,7 @@ export default function ItemDetailSheet({
                       {formatPrice(item.price)}
                     </span>
                     <span
-                      className="text-[11px] px-1.5 py-0.5 rounded font-semibold"
-                      style={{ background: "rgba(34,197,94,0.18)", color: "#4ade80" }}
+                      className="text-[11px] px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200"
                     >
                       {Math.round(
                         ((item.price - item.discountPrice) / item.price) * 100,
