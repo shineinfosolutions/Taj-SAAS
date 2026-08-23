@@ -173,9 +173,9 @@ export default function OrdersQueue() {
                         voids
                       </Pill>
                     )}
-                    {!canCollect && (
+                    {pendingKots.length > 0 && (
                       <Pill variant="warning" className="shrink-0">
-                        {pendingKots.length} pending
+                        {pendingKots.length} in kitchen
                       </Pill>
                     )}
                   </div>
@@ -201,23 +201,49 @@ export default function OrdersQueue() {
                   </span>
                 </div>
 
+                {/* Bill Breakdown */}
+                <div className="space-y-1.5 text-xs bg-base-200/50 p-2.5 rounded-lg mb-3">
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Subtotal</span>
+                    <span>{formatPrice(table.subtotal)}</span>
+                  </div>
+                  {table.discount > 0 && (
+                    <div className="flex justify-between text-success">
+                      <span>Discount</span>
+                      <span>-{formatPrice(table.discount)}</span>
+                    </div>
+                  )}
+                  {table.tax > 0 && (
+                    <div className="flex justify-between opacity-70">
+                      <span>GST (5%)</span>
+                      <span>{formatPrice(table.tax)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-sm border-t border-base-300 pt-1">
+                    <span>Total</span>
+                    <span className="text-warning font-mono">
+                      {formatPrice(table.total)}
+                    </span>
+                  </div>
+                </div>
+
                 <AnimatePresence>
                   {isExp && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden mb-3"
+                      className="overflow-hidden"
                     >
-                      <div className="space-y-2">
+                      <div className="space-y-3 pt-1 mb-3">
                         {table.kots.map((kot) => (
                           <div
                             key={kot._id}
-                            className="bg-base-200 rounded-xl px-3 py-2 text-sm"
+                            className="bg-base-200/30 rounded-lg p-2.5 text-xs"
                           >
-                            <div className="flex justify-between font-mono font-bold text-warning text-xs mb-1">
-                              <span>{kot.kotNumber}</span>
-                              <span>₹{kot.total.toFixed(2)}</span>
+                            <div className="flex justify-between font-semibold mb-1.5 opacity-80">
+                              <span>KOT #{kot.kotNumber}</span>
+                              <span className="capitalize">{kot.status}</span>
                             </div>
                             <ul className="space-y-1">
                               {kot.items.map((item) => {
@@ -230,41 +256,16 @@ export default function OrdersQueue() {
                                 return (
                                   <li
                                     key={item._id}
-                                    className="flex items-center justify-between gap-2 text-xs"
+                                    className={`flex items-center justify-between gap-1 ${cancelled ? "opacity-40 line-through" : ""}`}
                                   >
-                                    <span
-                                      className={`min-w-0 truncate ${cancelled ? "line-through opacity-40" : "text-base-content/70"}`}
-                                    >
-                                      {item.name} x {item.quantity}
-                                      {item.isNC && (
-                                        <span className="ml-1 badge badge-xs badge-success">
-                                          NC
-                                        </span>
-                                      )}
-                                      {unresolved && (
-                                        <span className="ml-1 text-warning">
-                                          · {item.itemStatus}
-                                        </span>
-                                      )}
-                                      {delivered && (
-                                        <span className="ml-1 text-success">
-                                          · delivered
-                                        </span>
-                                      )}
+                                    <span className="truncate flex-1">
+                                      {item.quantity}x {item.name}
                                     </span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <span
-                                        className={
-                                          item.isNC
-                                            ? "text-success font-semibold"
-                                            : "text-base-content/60"
-                                        }
-                                      >
-                                        {item.isNC
-                                          ? "FREE"
-                                          : `Rs.${(item.price * item.quantity).toFixed(2)}`}
-                                      </span>
-                                      {!cancelled && (
+                                    <span className="opacity-70 shrink-0 font-mono">
+                                      {item.isNC ? "NC" : formatPrice(item.price * item.quantity)}
+                                    </span>
+                                    {!cancelled && (
+                                      <div className="flex items-center gap-1 shrink-0 ml-1">
                                         <button
                                           onClick={() =>
                                             toggleNC(
@@ -283,40 +284,40 @@ export default function OrdersQueue() {
                                         >
                                           <Gift className="w-3 h-3" />
                                         </button>
-                                      )}
-                                      {unresolved && (
-                                        <>
-                                          <button
-                                            onClick={() =>
-                                              resolveItem(
-                                                kot._id,
-                                                item._id,
-                                                "delivered",
-                                              )
-                                            }
-                                            disabled={busy}
-                                            title="Mark served (charge)"
-                                            className="btn btn-success btn-xs btn-circle"
-                                          >
-                                            <Check className="w-3 h-3" />
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              resolveItem(
-                                                kot._id,
-                                                item._id,
-                                                "cancelled",
-                                              )
-                                            }
-                                            disabled={busy}
-                                            title="Cancel (drop from bill)"
-                                            className="btn btn-error btn-xs btn-circle"
-                                          >
-                                            <XIcon className="w-3 h-3" />
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
+                                        {unresolved && (
+                                          <>
+                                            <button
+                                              onClick={() =>
+                                                resolveItem(
+                                                  kot._id,
+                                                  item._id,
+                                                  "delivered",
+                                                )
+                                              }
+                                              disabled={busy}
+                                              title="Mark served"
+                                              className="btn btn-ghost btn-xs text-success px-1.5 h-5 min-h-0"
+                                            >
+                                              <Check className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                              onClick={() =>
+                                                resolveItem(
+                                                  kot._id,
+                                                  item._id,
+                                                  "cancelled",
+                                                )
+                                              }
+                                              disabled={busy}
+                                              title="Cancel item"
+                                              className="btn btn-ghost btn-xs text-error px-1.5 h-5 min-h-0"
+                                            >
+                                              <XIcon className="w-3 h-3" />
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
                                   </li>
                                 );
                               })}
@@ -325,8 +326,7 @@ export default function OrdersQueue() {
                         ))}
                       </div>
 
-                      {/* Secondary cashier actions */}
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => setTransferTable(table)}
                           className="btn btn-outline btn-info btn-sm flex-1 gap-1"
@@ -356,29 +356,13 @@ export default function OrdersQueue() {
                   />
 
                   <button
-                    onClick={() => canCollect && setSelected(table)}
-                    disabled={!canCollect}
-                    className={`btn btn-sm gap-1.5 rounded-xl font-extrabold shadow transition-all text-xs ${
-                      canCollect
-                        ? "bg-amber-400 hover:bg-amber-300 text-black border-none cursor-pointer"
-                        : "bg-white/10 text-white/50 border-white/10 cursor-not-allowed opacity-60"
-                    }`}
-                    title={
-                      !canCollect
-                        ? `${pendingKots.length} KOT${pendingKots.length > 1 ? "s" : ""} have unresolved items — expand to deliver or cancel them`
-                        : undefined
-                    }
+                    onClick={() => setSelected(table)}
+                    className="btn btn-sm gap-1.5 rounded-xl font-extrabold shadow transition-all text-xs bg-amber-400 hover:bg-amber-300 text-black border-none cursor-pointer"
                   >
                     <Receipt className="w-3.5 h-3.5 shrink-0" />
-                    {canCollect ? (
-                      <span className="truncate">
-                        Collect {formatPrice(table.total)}
-                      </span>
-                    ) : (
-                      <span className="truncate text-amber-300 text-[11px]">
-                        Resolve {pendingKots.length} KOT
-                      </span>
-                    )}
+                    <span className="truncate">
+                      Collect {formatPrice(table.total)}
+                    </span>
                   </button>
                 </div>
               </motion.div>
@@ -390,6 +374,7 @@ export default function OrdersQueue() {
       {selected && (
         <PaymentModal
           table={selected}
+          branding={branding}
           onClose={() => setSelected(null)}
           onPaid={() => {
             setSelected(null);

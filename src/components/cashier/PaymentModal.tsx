@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -27,9 +28,15 @@ import type { PaymentMethod, CustomerTier } from "@/types";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 import DiscountControl, { useDiscount } from "@/components/pos/DiscountControl";
 import { formatPrice } from "@/lib/utils";
+import { TableReceiptContent } from "./TableReceipt";
 
 interface PaymentModalProps {
   table: TableBill;
+  branding?: {
+    hotelName?: string;
+    gstNumber?: string;
+    logoUrl?: string;
+  };
   onClose: () => void;
   onPaid: () => void;
 }
@@ -46,11 +53,19 @@ const PAYMENT_METHODS: {
 
 export default function PaymentModal({
   table,
+  branding,
   onClose,
   onPaid,
 }: PaymentModalProps) {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [loading, setLoading] = useState(false);
+
+  const printRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Bill-${table?.tableLabel ?? "Table"}`,
+    pageStyle: `@page { size: 80mm auto; margin: 0; } @media print { body { margin: 0; } }`,
+  });
 
   // ─── Customer CRM State ──────────────────────────────────────────────────
   const [custPhone, setCustPhone] = useState("");
@@ -196,8 +211,8 @@ export default function PaymentModal({
     toast.info("Coupon removed");
   };
 
-  // ─── Settle Payment ────────────────────────────────────────────────────
-  const handlePay = async (print = false) => {
+  // ─── Settle Payment & Print Invoice ────────────────────────────────────
+  const handlePay = async () => {
     if (!custPhone || custPhone.length !== 10) {
       toast.error("Please enter a valid 10-digit Customer Mobile Number");
       return;
@@ -223,7 +238,7 @@ export default function PaymentModal({
       const basePayload = {
         action: "pay_table",
         tableId: table.tableId,
-        printBill: print,
+        printBill: true,
         customerPhone: custPhone,
         customerName: custName || "Guest",
         customerEmail: custEmail || undefined,
@@ -265,11 +280,12 @@ export default function PaymentModal({
       if (!res.ok) {
         throw new Error(data.error || "Failed to process payment");
       }
-      toast.success(
-        print
-          ? "Payment Recorded — Bill Sent to Printer!"
-          : "Payment Recorded — Table Cleared!",
-      );
+      toast.success("Payment Recorded — Invoice Printed!");
+      try {
+        handlePrint();
+      } catch (printErr) {
+        console.error("Browser print error:", printErr);
+      }
       onPaid();
     } catch (err: any) {
       toast.error(err.message || "Failed to process payment");
@@ -725,33 +741,31 @@ export default function PaymentModal({
             </div>
           </div>
 
-          {/* Footer Action Buttons */}
-          <div className="p-3 border-t border-white/10 bg-white/3 flex gap-2.5 shrink-0">
+          {/* Footer Action Button */}
+          <div className="p-3 border-t border-white/10 bg-white/3 flex shrink-0">
             <button
-              onClick={() => handlePay(false)}
+              onClick={handlePay}
               disabled={loading}
-              className="btn bg-amber-400 hover:bg-amber-300 text-black font-extrabold flex-1 text-xs rounded-xl py-2.5 border-none shadow-lg cursor-pointer h-10 min-h-0"
+              className="btn bg-amber-400 hover:bg-amber-300 text-black font-extrabold flex-1 text-sm rounded-xl py-3 border-none shadow-lg cursor-pointer h-11 min-h-0 flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="loading loading-spinner loading-xs" />
+                <span className="loading loading-spinner loading-sm" />
               ) : (
-                <CheckCircle2 className="w-3.5 h-3.5" />
+                <Printer className="w-4 h-4" />
               )}
-              Collect ({formatPrice(payable)})
+              Collect & Print Bill ({formatPrice(payable)})
             </button>
+          </div>
 
-            <button
-              onClick={() => handlePay(true)}
-              disabled={loading}
-              className="btn bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold flex-1 text-xs rounded-xl py-2.5 border-none shadow-lg cursor-pointer h-10 min-h-0"
-            >
-              {loading ? (
-                <span className="loading loading-spinner loading-xs" />
-              ) : (
-                <Printer className="w-3.5 h-3.5" />
-              )}
-              Collect & Print Bill
-            </button>
+          {/* Hidden printable receipt for direct thermal browser print */}
+          <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
+            <TableReceiptContent
+              ref={printRef}
+              data={{ tableLabel: table.tableLabel, kots: table.kots }}
+              hotelName={branding?.hotelName}
+              gstNumber={branding?.gstNumber}
+              logoUrl={branding?.logoUrl}
+            />
           </div>
         </motion.div>
       </motion.div>
