@@ -765,6 +765,17 @@ export default function PaymentModal({
               hotelName={branding?.hotelName}
               gstNumber={branding?.gstNumber}
               logoUrl={branding?.logoUrl}
+              discountOverride={totalDiscount}
+              taxOverride={tax}
+              totalOverride={payable}
+              paymentMethodOverride={
+                splitMode
+                  ? `Split (${split1Method.toUpperCase()} + ${split2Method.toUpperCase()})`
+                  : method.toUpperCase()
+              }
+              isSettledOverride={true}
+              customerName={custName || undefined}
+              customerPhone={custPhone || undefined}
             />
           </div>
         </motion.div>

@@ -12,24 +12,66 @@ export interface ReceiptData {
   kots: IOrder[];
 }
 
-/** Printable combined receipt for a whole table (all KOTs). 80mm thermal style. */
-export const TableReceiptContent = forwardRef<HTMLDivElement, {
+export interface TableReceiptContentProps {
   data: ReceiptData;
   hotelName?: string;
   gstNumber?: string;
   logoUrl?: string;
-}>(function TableReceiptContent({ data, hotelName = "Taj Restaurant & Cafe", gstNumber, logoUrl }, ref) {
+  discountOverride?: number;
+  taxOverride?: number;
+  totalOverride?: number;
+  paymentMethodOverride?: string;
+  isSettledOverride?: boolean;
+  customerName?: string;
+  customerPhone?: string;
+}
+
+/** Printable combined receipt for a whole table (all KOTs). 80mm thermal style. */
+export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptContentProps>(function TableReceiptContent(
+  {
+    data,
+    hotelName = "Taj Restaurant & Cafe",
+    gstNumber,
+    logoUrl,
+    discountOverride,
+    taxOverride,
+    totalOverride,
+    paymentMethodOverride,
+    isSettledOverride,
+    customerName,
+    customerPhone,
+  },
+  ref,
+) {
   const safeKots = data?.kots ?? [];
   const tableLabel = data?.tableLabel ?? "Table";
   const items = safeKots.flatMap((k) =>
     (k.items ?? []).filter((i) => i.itemStatus !== "cancelled"),
   );
   const subtotal = safeKots.reduce((s, k) => s + (k.subtotal ?? 0), 0);
-  const discount = safeKots.reduce((s, k) => s + (k.discountAmount ?? 0), 0);
-  const tax = safeKots.reduce((s, k) => s + (k.tax ?? 0), 0);
-  const total = safeKots.reduce((s, k) => s + (k.total ?? 0), 0);
-  const isSettled = safeKots.length > 0 && safeKots.every((k) => ["paid", "cleared"].includes(k.status));
-  const paymentMethod = safeKots.find((k) => k.paymentMethod)?.paymentMethod;
+  const discount =
+    discountOverride !== undefined
+      ? discountOverride
+      : safeKots.reduce((s, k) => s + (k.discountAmount ?? 0), 0);
+  const tax =
+    taxOverride !== undefined
+      ? taxOverride
+      : safeKots.reduce((s, k) => s + (k.tax ?? 0), 0);
+  const total =
+    totalOverride !== undefined
+      ? totalOverride
+      : safeKots.reduce((s, k) => s + (k.total ?? 0), 0);
+  const isSettled =
+    isSettledOverride !== undefined
+      ? isSettledOverride
+      : safeKots.length > 0 &&
+        safeKots.every((k) => ["paid", "cleared"].includes(k.status));
+  const paymentMethod =
+    paymentMethodOverride || safeKots.find((k) => k.paymentMethod)?.paymentMethod;
+  const custName =
+    customerName || safeKots.find((k) => k.customerName)?.customerName;
+  const custPhone =
+    customerPhone || safeKots.find((k) => k.customerPhone)?.customerPhone;
 
   return (
     <div
@@ -85,12 +127,29 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, {
               {format(new Date(), "dd MMM yyyy  HH:mm")}
             </td>
           </tr>
-          <tr>
-            <td>KOTs:</td>
-            <td style={{ textAlign: "right" }}>
-              {safeKots.map((k) => k.kotNumber).join(", ")}
-            </td>
-          </tr>
+          {safeKots.some((k) => k.kotNumber) && (
+            <tr>
+              <td>KOTs:</td>
+              <td style={{ textAlign: "right" }}>
+                {safeKots
+                  .map((k) => k.kotNumber)
+                  .filter(Boolean)
+                  .join(", ")}
+              </td>
+            </tr>
+          )}
+          {custName && (
+            <tr>
+              <td>Customer:</td>
+              <td style={{ textAlign: "right" }}>{custName}</td>
+            </tr>
+          )}
+          {custPhone && (
+            <tr>
+              <td>Phone:</td>
+              <td style={{ textAlign: "right" }}>{custPhone}</td>
+            </tr>
+          )}
         </tbody>
       </table>
 
