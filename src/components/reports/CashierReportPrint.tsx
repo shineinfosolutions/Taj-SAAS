@@ -27,7 +27,11 @@ interface CashierReportPrintContentProps {
   gstNumber?: string;
 }
 
-/** Printable A4 cashier-wise billing report. */
+/**
+ * Printable cashier-wise billing report — 80mm thermal receipt format, same
+ * as the customer bill (TableReceiptContent), since that's the printer this
+ * report actually goes out on at the till.
+ */
 export const CashierReportPrintContent = forwardRef<
   HTMLDivElement,
   CashierReportPrintContentProps
@@ -36,60 +40,66 @@ export const CashierReportPrintContent = forwardRef<
     <div
       ref={ref}
       style={{
-        padding: "16mm 12mm",
-        fontFamily: "Arial, sans-serif",
+        fontFamily: "'Courier New', Courier, monospace",
+        fontSize: "12px",
+        lineHeight: 1.4,
+        padding: "8mm",
+        maxWidth: "80mm",
         color: "#000",
-        width: "100%",
+        background: "#fff",
       }}
     >
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 18, fontWeight: 800 }}>{hotelName}</div>
-        {gstNumber && <div style={{ fontSize: 11 }}>GSTIN: {gstNumber}</div>}
-        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 8 }}>
-          Cashier-wise Billing Report
+      <div style={{ textAlign: "center", marginBottom: 6 }}>
+        <div style={{ fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
+          {hotelName.toUpperCase()}
         </div>
-        <div style={{ fontSize: 11, color: "#444" }}>Date: {data.date}</div>
+        {gstNumber && <div style={{ fontSize: 10 }}>GSTIN: {gstNumber}</div>}
+        <div style={{ fontSize: 12, fontWeight: "bold", marginTop: 2 }}>
+          CASHIER-WISE BILLING REPORT
+        </div>
+        <div style={{ fontSize: 10 }}>Date: {data.date}</div>
+        <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: "2px solid #000" }}>
-            <th style={{ textAlign: "left", padding: "6px 4px" }}>Cashier</th>
-            <th style={{ textAlign: "right", padding: "6px 4px" }}>Orders</th>
-            <th style={{ textAlign: "right", padding: "6px 4px" }}>Cash</th>
-            <th style={{ textAlign: "right", padding: "6px 4px" }}>Card</th>
-            <th style={{ textAlign: "right", padding: "6px 4px" }}>UPI</th>
-            <th style={{ textAlign: "right", padding: "6px 4px" }}>Total</th>
-          </tr>
-        </thead>
+      {data.cashiers.map((c) => (
+        <div key={c.cashierId} style={{ marginBottom: 6 }}>
+          <table style={{ width: "100%", fontSize: 11 }}>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: "bold" }}>{c.name}</td>
+                <td style={{ textAlign: "right" }}>{c.orderCount} orders</td>
+              </tr>
+              <tr>
+                <td style={{ fontSize: 10 }}>Cash / Card / UPI</td>
+                <td style={{ textAlign: "right", fontSize: 10 }}>
+                  {formatPrice(c.cash)} / {formatPrice(c.card)} / {formatPrice(c.upi)}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: "bold" }}>Total</td>
+                <td style={{ textAlign: "right", fontWeight: "bold" }}>
+                  {formatPrice(c.total)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ borderTop: "1px dashed #000", margin: "5px 0" }} />
+        </div>
+      ))}
+
+      <table style={{ width: "100%", fontSize: 13 }}>
         <tbody>
-          {data.cashiers.map((c) => (
-            <tr key={c.cashierId} style={{ borderBottom: "1px solid #ccc" }}>
-              <td style={{ padding: "6px 4px", fontWeight: 700 }}>{c.name}</td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>{c.orderCount}</td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>{formatPrice(c.cash)}</td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>{formatPrice(c.card)}</td>
-              <td style={{ textAlign: "right", padding: "6px 4px" }}>{formatPrice(c.upi)}</td>
-              <td style={{ textAlign: "right", padding: "6px 4px", fontWeight: 800 }}>
-                {formatPrice(c.total)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr style={{ borderTop: "2px solid #000" }}>
-            <td style={{ padding: "8px 4px", fontWeight: 800 }} colSpan={5}>
-              Grand Total
-            </td>
-            <td style={{ textAlign: "right", padding: "8px 4px", fontWeight: 800 }}>
+          <tr>
+            <td style={{ fontWeight: "bold" }}>GRAND TOTAL</td>
+            <td style={{ textAlign: "right", fontWeight: "bold" }}>
               {formatPrice(data.grandTotal)}
             </td>
           </tr>
-        </tfoot>
+        </tbody>
       </table>
 
-      <div style={{ marginTop: 24, fontSize: 10, color: "#666", textAlign: "center" }}>
-        Generated on {new Date().toLocaleString("en-IN")}
+      <div style={{ marginTop: 10, fontSize: 9, color: "#444", textAlign: "center" }}>
+        Generated {new Date().toLocaleString("en-IN")}
       </div>
     </div>
   );
@@ -115,7 +125,7 @@ export function CashierReportPrintButton({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Cashier-Report-${data.date}`,
-    pageStyle: `@page { size: A4 portrait; margin: 12mm; } @media print { body { margin: 0; } }`,
+    pageStyle: `@page { size: 80mm auto; margin: 0; } @media print { body { margin: 0; } }`,
   });
 
   return (

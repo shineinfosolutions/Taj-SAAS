@@ -88,9 +88,9 @@ function StatCard({
         <Icon className="w-5 h-5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-slate-500 font-bold leading-tight">{label}</p>
-        <p className="font-black text-lg sm:text-xl text-slate-900 leading-tight tracking-tight mt-0.5">{value}</p>
-        {sub && <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-tight">{sub}</p>}
+        <p className="text-xs text-slate-500 font-bold leading-tight truncate">{label}</p>
+        <p className="font-black text-[13px] sm:text-sm text-slate-900 leading-tight tracking-tight mt-0.5 break-words">{value}</p>
+        {sub && <p className="text-[11px] text-slate-400 font-medium mt-0.5 leading-tight truncate">{sub}</p>}
       </div>
     </div>
   );
