@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
-import { Users, Clock, BellRing, Utensils, ChefHat, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Users,
+  Clock,
+  BellRing,
+  Utensils,
+  ChefHat,
+  Sparkles,
+  GitMerge,
+  CheckSquare,
+  X,
+} from "lucide-react";
 import { useCaptainStore } from "@/store/captain";
 import type { ILocation, IOrder } from "@/types";
 import { naturalSortLocations } from "@/lib/location-utils";
+import MergeTablesModal from "./MergeTablesModal";
 
 interface TableSelectorProps {
   onSelectTable: (table: ILocation) => void;
@@ -29,6 +40,11 @@ import { playLoudOrderChime } from "@/hooks/useCaptainOrderAudioAlert";
 export default function TableSelector({ onSelectTable }: TableSelectorProps) {
   const setStep = useCaptainStore((s) => s.setStep);
   const prevPendingCount = useRef(0);
+  const queryClient = useQueryClient();
+
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
 
   const { data: locations = [], isLoading } = useQuery<ILocation[]>({
     queryKey: ["captain-locations"],
@@ -109,7 +125,23 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
       pendingSelfOrdersByTable.has(String(t._id)),
   );
 
+  const toggleMergeSelection = (table: ILocation) => {
+    if (table.mergedIntoTableId) return; // already folded elsewhere
+    setSelectedForMerge((prev) => {
+      const next = new Set(prev);
+      if (next.has(table._id)) next.delete(table._id);
+      else next.add(table._id);
+      return next;
+    });
+  };
+
   const handleTableClick = (table: ILocation) => {
+    if (mergeMode) {
+      toggleMergeSelection(table);
+      return;
+    }
+    if (table.mergedIntoTableId) return; // merged away — nothing to open here
+
     const hasPending = pendingSelfOrdersByTable.has(String(table._id));
     const hasRunning = runningOrdersByTable.has(String(table._id));
     const hasPrepared = preparedOrdersByTable.has(String(table._id));
@@ -134,6 +166,36 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
 
   return (
     <div className="space-y-6">
+      {/* Merge Tables toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-slate-500">
+          {mergeMode
+            ? "Tap tables to select, then merge their bills."
+            : "Big party across multiple tables? Merge them for one bill."}
+        </p>
+        <button
+          onClick={() => {
+            setMergeMode((m) => !m);
+            setSelectedForMerge(new Set());
+          }}
+          className={`btn btn-sm gap-1.5 rounded-xl font-black ${
+            mergeMode
+              ? "bg-slate-200 hover:bg-slate-300 text-slate-800 border-none"
+              : "bg-amber-500 hover:bg-amber-600 text-white border-none"
+          }`}
+        >
+          {mergeMode ? (
+            <>
+              <X className="w-3.5 h-3.5" /> Cancel
+            </>
+          ) : (
+            <>
+              <GitMerge className="w-3.5 h-3.5" /> Merge Tables
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Stats Header */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="stat bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm">
@@ -231,15 +293,36 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
               dotColor = "bg-rose-600 animate-pulse";
             }
 
+            const mergedInto = table.mergedIntoTableId
+              ? list.find((t) => t._id === table.mergedIntoTableId)
+              : undefined;
+            if (table.mergedIntoTableId) {
+              cardStyle = "bg-slate-100 border-2 border-slate-300 opacity-70 cursor-not-allowed";
+              statusBadge = (
+                <span className="text-xs font-black text-slate-700 bg-slate-200 border border-slate-300 px-2.5 py-0.5 rounded-lg tracking-tight">
+                  Merged → {mergedInto?.code ?? "?"}
+                </span>
+              );
+              dotColor = "bg-slate-400";
+            }
+
+            const isSelectedForMerge = selectedForMerge.has(table._id);
+            if (mergeMode && !table.mergedIntoTableId) {
+              cardStyle = isSelectedForMerge
+                ? "bg-amber-100 border-2 border-amber-500 ring-4 ring-amber-400/40 shadow-lg"
+                : `${cardStyle} cursor-pointer`;
+            }
+
             return (
               <motion.button
                 key={table._id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.02 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.96 }}
+                whileHover={{ scale: table.mergedIntoTableId ? 1 : 1.05 }}
+                whileTap={{ scale: table.mergedIntoTableId ? 1 : 0.96 }}
                 onClick={() => handleTableClick(table)}
+                disabled={Boolean(table.mergedIntoTableId)}
                 className={`
                   relative flex flex-col items-center justify-center gap-1.5
                   rounded-2xl p-4 transition-all text-center cursor-pointer
@@ -249,11 +332,25 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
                 {/* Status Dot / Indicator */}
                 <span className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ${dotColor}`} />
 
-                {hasPrepared ? (
+                {mergeMode && !table.mergedIntoTableId && (
+                  <span
+                    className={`absolute top-2 left-2 w-5 h-5 rounded-md border-2 flex items-center justify-center ${
+                      isSelectedForMerge
+                        ? "bg-amber-500 border-amber-600"
+                        : "bg-white border-slate-300"
+                    }`}
+                  >
+                    {isSelectedForMerge && (
+                      <CheckSquare className="w-3.5 h-3.5 text-white" />
+                    )}
+                  </span>
+                )}
+
+                {!mergeMode && hasPrepared ? (
                   <span className="absolute top-2 left-2 text-[10px] bg-emerald-600 text-white font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-md animate-pulse">
                     <ChefHat className="w-3 h-3" /> PREPARED
                   </span>
-                ) : hasSelfOrder ? (
+                ) : !mergeMode && hasSelfOrder ? (
                   <span className="absolute top-2 left-2 text-[10px] bg-amber-500 text-white font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm">
                     <BellRing className="w-3 h-3" /> NEW
                   </span>
@@ -282,6 +379,42 @@ export default function TableSelector({ onSelectTable }: TableSelectorProps) {
       <p className="text-xs text-slate-600 text-center font-bold">
         Auto-refreshes every 3 seconds · {list.length} total tables
       </p>
+
+      {/* Floating merge action bar */}
+      <AnimatePresence>
+        {mergeMode && selectedForMerge.size >= 2 && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-3"
+          >
+            <span className="text-sm font-bold">
+              {selectedForMerge.size} tables selected
+            </span>
+            <button
+              onClick={() => setConfirmingMerge(true)}
+              className="btn btn-sm gap-1.5 bg-amber-500 hover:bg-amber-600 text-white border-none rounded-xl font-black"
+            >
+              <GitMerge className="w-3.5 h-3.5" /> Merge
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {confirmingMerge && (
+        <MergeTablesModal
+          tables={list.filter((t) => selectedForMerge.has(t._id))}
+          onClose={() => setConfirmingMerge(false)}
+          onMerged={() => {
+            setConfirmingMerge(false);
+            setMergeMode(false);
+            setSelectedForMerge(new Set());
+            queryClient.invalidateQueries({ queryKey: ["captain-locations"] });
+            queryClient.invalidateQueries({ queryKey: ["captain-all-active-orders"] });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -285,7 +285,7 @@ export default function AdminOrderActions({
         <Sheet title="Transfer to…" onClose={() => setModal(null)}>
           <div className="grid grid-cols-3 gap-2 max-h-60 overflow-y-auto">
             {locations
-              .filter((l) => l._id !== order.tableId)
+              .filter((l) => l._id !== order.tableId && !l.mergedIntoTableId)
               .map((l) => (
                 <button
                   key={l._id}

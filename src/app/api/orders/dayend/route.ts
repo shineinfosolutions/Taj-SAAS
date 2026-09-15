@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
+import Item from "@/lib/db/models/Item";
+import "@/lib/db/models/Category"; // registers the schema so populate("categoryId") works
 
 /**
  * Day-end / sales summary for a date (default today), based on settled orders.
@@ -39,6 +41,18 @@ export async function GET(req: NextRequest) {
   const byHour: Record<string, number> = {};
   const byCaptain: Record<string, { orders: number; revenue: number }> = {};
 
+  interface ItemSaleInstance {
+    time: string;
+    qty: number;
+    tableLabel: string;
+    kotNumber: string;
+    orderId: string;
+  }
+  const itemSales: Record<
+    string,
+    { name: string; qty: number; revenue: number; instances: ItemSaleInstance[] }
+  > = {};
+
   for (const o of settled) {
     sales += o.total ?? 0;
     tax += o.tax ?? 0;
@@ -67,6 +81,20 @@ export async function GET(req: NextRequest) {
         qty: (topItems[it.name]?.qty ?? 0) + it.quantity,
         revenue: (topItems[it.name]?.revenue ?? 0) + rev,
       };
+
+      const key = it.itemId?.toString() ?? it.name;
+      if (!itemSales[key]) {
+        itemSales[key] = { name: it.name, qty: 0, revenue: 0, instances: [] };
+      }
+      itemSales[key].qty += it.quantity;
+      itemSales[key].revenue += rev;
+      itemSales[key].instances.push({
+        time: (it.orderedAt ?? o.createdAt).toISOString(),
+        qty: it.quantity,
+        tableLabel: o.tableLabel,
+        kotNumber: o.kotNumber,
+        orderId: o._id.toString(),
+      });
     }
   }
 
@@ -80,6 +108,38 @@ export async function GET(req: NextRequest) {
     .map(([name, v]) => ({ name, qty: v.qty, revenue: Math.round(v.revenue) }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 15);
+
+  // Full catalog, so items with zero sales on this date still show up.
+  const catalog = await Item.find().populate("categoryId", "name").lean();
+  const seenKeys = new Set<string>();
+  const itemWise = catalog.map((item) => {
+    const key = item._id.toString();
+    seenKeys.add(key);
+    const sale = itemSales[key];
+    const category =
+      (item.categoryId as unknown as { name?: string } | null)?.name ?? "Uncategorized";
+    return {
+      itemId: key,
+      name: item.name,
+      category,
+      qty: sale?.qty ?? 0,
+      revenue: Math.round(sale?.revenue ?? 0),
+      instances: (sale?.instances ?? []).sort((a, b) => a.time.localeCompare(b.time)),
+    };
+  });
+  // Sold items whose catalog entry was later removed/renamed still show up.
+  for (const [key, sale] of Object.entries(itemSales)) {
+    if (seenKeys.has(key)) continue;
+    itemWise.push({
+      itemId: key,
+      name: sale.name,
+      category: "Deleted item",
+      qty: sale.qty,
+      revenue: Math.round(sale.revenue),
+      instances: sale.instances.sort((a, b) => a.time.localeCompare(b.time)),
+    });
+  }
+  itemWise.sort((a, b) => b.qty - a.qty || b.revenue - a.revenue || a.name.localeCompare(b.name));
 
   const captains = Object.entries(byCaptain)
     .map(([name, v]) => ({ name, orders: v.orders, revenue: Math.round(v.revenue) }))
@@ -105,6 +165,7 @@ export async function GET(req: NextRequest) {
       .map(([hour, amount]) => ({ hour, amount: Math.round(amount) }))
       .sort((a, b) => a.hour.localeCompare(b.hour)),
     topItems: top,
+    itemWise,
     byCaptain: captains,
   });
 }

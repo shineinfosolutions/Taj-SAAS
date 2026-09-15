@@ -91,6 +91,8 @@ export interface ILocation {
   isActive: boolean;
   isOccupied: boolean;
   notes?: string;
+  // Set while this table's bill has been folded into another table's bill.
+  mergedIntoTableId?: string;
   createdAt: string;
   updatedAt: string;
 }

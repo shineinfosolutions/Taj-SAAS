@@ -34,7 +34,10 @@ export default function TransferModal({
   const [loading, setLoading] = useState(false);
 
   // Any table except the source. Occupied targets merge the two bills.
-  const targets = locations.filter((l) => l._id !== table.tableId);
+  // Tables already folded into another bill aren't valid targets.
+  const targets = locations.filter(
+    (l) => l._id !== table.tableId && !l.mergedIntoTableId,
+  );
 
   const handleTransfer = async () => {
     if (!target) return;

@@ -693,6 +693,12 @@ export async function PATCH(
           { isOccupied: false },
           { session: s },
         );
+        // Free any tables that were merged into this bill.
+        await Location.updateMany(
+          { mergedIntoTableId: tableId },
+          { isOccupied: false, $unset: { mergedIntoTableId: "" } },
+          { session: s },
+        );
       });
 
       return NextResponse.json({ success: true });

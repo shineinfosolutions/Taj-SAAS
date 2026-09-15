@@ -13,12 +13,14 @@ import {
   ArrowRightLeft,
   Trash2,
   Gift,
+  GitMerge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatElapsed, formatPrice } from "@/lib/utils";
 import { BillPrintButton } from "./TableReceipt";
 import PaymentModal from "./PaymentModal";
 import TransferModal from "./TransferModal";
+import MergeModal from "./MergeModal";
 import VoidModal from "./VoidModal";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 import { Pill } from "@/components/ui/Pill";
@@ -53,6 +55,7 @@ export default function OrdersQueue() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState<TableBill | null>(null);
   const [transferTable, setTransferTable] = useState<TableBill | null>(null);
+  const [mergeTable, setMergeTable] = useState<TableBill | null>(null);
   const [voidTable, setVoidTable] = useState<TableBill | null>(null);
   const [busyItem, setBusyItem] = useState<string | null>(null);
 
@@ -327,6 +330,13 @@ export default function OrdersQueue() {
                           Transfer
                         </button>
                         <button
+                          onClick={() => setMergeTable(table)}
+                          className="btn btn-outline btn-info btn-sm flex-1 gap-1"
+                        >
+                          <GitMerge className="w-3.5 h-3.5" />
+                          Merge
+                        </button>
+                        <button
                           onClick={() => setVoidTable(table)}
                           className="btn btn-outline btn-error btn-sm flex-1 gap-1"
                         >
@@ -380,6 +390,17 @@ export default function OrdersQueue() {
           onClose={() => setTransferTable(null)}
           onTransferred={() => {
             setTransferTable(null);
+            refetch();
+          }}
+        />
+      )}
+      {mergeTable && (
+        <MergeModal
+          table={mergeTable}
+          otherTables={tables.filter((t) => t.tableId !== mergeTable.tableId)}
+          onClose={() => setMergeTable(null)}
+          onMerged={() => {
+            setMergeTable(null);
             refetch();
           }}
         />

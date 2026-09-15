@@ -40,6 +40,12 @@ export async function POST(req: NextRequest) {
       { status: 404 },
     );
   }
+  if (toTable.mergedIntoTableId) {
+    return NextResponse.json(
+      { error: "Target table is already merged into another table" },
+      { status: 400 },
+    );
+  }
   const wasOccupied = toTable.isOccupied;
 
   try {

@@ -17,6 +17,7 @@ import TableStatusGrid from "./TableStatusGrid";
 import CashierNewOrder from "./CashierNewOrder";
 import CashierHistory from "./CashierHistory";
 import CashierInvoices from "./CashierInvoices";
+import CashierMyReport from "./CashierMyReport";
 
 const queryClient = new QueryClient();
 
@@ -28,7 +29,9 @@ export default function CashierPageClient({
   staffName,
 }: CashierPageClientProps) {
   const [mobileTab, setMobileTab] = useState<"billing" | "tables">("billing");
-  const [view, setView] = useState<"billing" | "new_order" | "invoices" | "history">("billing");
+  const [view, setView] = useState<
+    "billing" | "new_order" | "invoices" | "history" | "my_report"
+  >("billing");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -66,6 +69,13 @@ export default function CashierPageClient({
                   <History className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">History</span>
                 </button>
+                <button
+                  onClick={() => setView("my_report")}
+                  className="btn btn-ghost btn-xs gap-1.5"
+                >
+                  <Landmark className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">My Report</span>
+                </button>
               </>
             )}
             <button
@@ -96,6 +106,10 @@ export default function CashierPageClient({
         ) : view === "history" ? (
           <div className="flex-1 overflow-hidden">
             <CashierHistory onExit={() => setView("billing")} />
+          </div>
+        ) : view === "my_report" ? (
+          <div className="flex-1 overflow-hidden">
+            <CashierMyReport onExit={() => setView("billing")} />
           </div>
         ) : (
           <>

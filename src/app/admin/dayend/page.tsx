@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/utils";
 import { exportXlsx } from "@/lib/inventory/sheet";
+import ItemWiseReportModal, { type ItemWise } from "./ItemWiseReportModal";
 
 interface DayEnd {
   date: string;
@@ -35,6 +36,7 @@ interface DayEnd {
   byPayment: { method: string; amount: number }[];
   byHour: { hour: string; amount: number }[];
   topItems: { name: string; qty: number; revenue: number }[];
+  itemWise: ItemWise[];
   byCaptain?: { name: string; orders: number; revenue: number }[];
 }
 
@@ -42,7 +44,7 @@ const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
 export default function DayEndPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const { data, isLoading } = useQuery<DayEnd>({
+  const { data } = useQuery<DayEnd>({
     queryKey: ["dayend", date],
     queryFn: () => getJSON(`/api/orders/dayend?date=${date}`),
   });
@@ -109,6 +111,7 @@ export default function DayEndPage() {
               onChange={(e) => setDate(e.target.value)}
               className="w-40 bg-white border-slate-300 text-slate-900 rounded-xl font-bold text-xs"
             />
+            <ItemWiseReportModal defaultDate={date} />
             <Button
               size="sm"
               className="gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-xs"
@@ -130,10 +133,12 @@ export default function DayEndPage() {
                       metric: `Payment: ${p.method}`,
                       value: p.amount,
                     })),
-                    ...data.topItems.map((t) => ({
-                      metric: `Item: ${t.name} (x${t.qty})`,
-                      value: t.revenue,
-                    })),
+                    ...data.itemWise
+                      .filter((t) => t.qty > 0)
+                      .map((t) => ({
+                        metric: `Item: ${t.name} [${t.category}] (x${t.qty})`,
+                        value: t.revenue,
+                      })),
                     ...(data.byCaptain ?? []).map((c) => ({
                       metric: `Captain: ${c.name} (${c.orders} orders)`,
                       value: c.revenue,
