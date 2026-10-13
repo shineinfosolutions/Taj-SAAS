@@ -134,6 +134,9 @@ async function printBill(config, order, branding = {}) {
   p.println(`Bill  : ${order.kotNumber || "-"}`);
   p.println(`Table : ${order.tableLabel || "-"}`);
   p.println(`Time  : ${fmtTime(order.createdAt)}`);
+  if (order.customerName) p.println(`Cust  : ${order.customerName}`);
+  if (order.customerPhone) p.println(`Phone : ${order.customerPhone}`);
+  if (order.customerGstin) p.println(`Cust GSTIN: ${order.customerGstin}`);
   p.drawLine();
 
   for (const it of order.items || []) {
@@ -180,6 +183,16 @@ async function printBill(config, order, branding = {}) {
     p.println(
       `Paid: ${String(order.paymentMethod).replace("_", " ").toUpperCase()}`,
     );
+  }
+  if (order.cashReceived > 0) {
+    p.tableCustom([
+      { text: "Cash Received", align: "LEFT", width: 0.6 },
+      { text: money(order.cashReceived), align: "RIGHT", width: 0.4 },
+    ]);
+    p.tableCustom([
+      { text: "Change Returned", align: "LEFT", width: 0.6 },
+      { text: money(order.changeReturned || 0), align: "RIGHT", width: 0.4 },
+    ]);
   }
   p.drawLine();
   p.alignCenter();

@@ -3,7 +3,7 @@
 
 // Bump this on every deploy that changes hashed assets — `activate` purges all
 // caches that don't match, so stale _next/static chunks can't cause ChunkLoadError.
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const STATIC_CACHE = `taj-static-${CACHE_VERSION}`;
 const ALL_CACHES = [STATIC_CACHE];
 
@@ -52,6 +52,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Local dev: never intercept. Turbopack serves /_next/static chunks at stable
+  // URLs with changing content, so cache-first here serves stale chunks and
+  // sends the page into an endless HMR full-reload loop.
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
 
   // Skip non-GET, cross-origin, browser extensions
   if (

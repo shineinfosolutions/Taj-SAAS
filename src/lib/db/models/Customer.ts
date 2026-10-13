@@ -7,6 +7,7 @@ export interface ICustomer extends Document {
   name: string;
   phone: string;
   email?: string;
+  gstin?: string;
   isMarried: boolean;
   dob?: Date;
   anniversaryDate?: Date;
@@ -31,6 +32,7 @@ const CustomerSchema = new Schema<ICustomer>(
     name: { type: String, required: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true, index: true },
     email: { type: String, trim: true, lowercase: true },
+    gstin: { type: String, trim: true, uppercase: true },
     isMarried: { type: Boolean, default: false },
     dob: { type: Date },
     anniversaryDate: { type: Date },

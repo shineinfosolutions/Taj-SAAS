@@ -184,9 +184,13 @@ export interface IOrder {
   discountApproved?: boolean;
   paymentMethod?: PaymentMethod;
   paymentAmount?: number;
+  splitPayment?: { method: PaymentMethod; amount: number }[];
+  cashReceived?: number;
+  changeReturned?: number;
   cashierId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerGstin?: string;
   customerEmail?: string;
   customerTier?: CustomerTier;
   isCustomerMarried?: boolean;

@@ -22,6 +22,10 @@ import {
 import { formatPrice } from "@/lib/utils";
 import type { IOrder } from "@/types";
 import { BillPrintButton } from "@/components/cashier/TableReceipt";
+import TodayInvoiceSummary from "@/components/reports/TodayInvoiceSummary";
+
+// Server cap on one invoices fetch — if a range hits it, the totals are partial.
+const INVOICE_FETCH_LIMIT = 2000;
 
 interface BrandingLite {
   hotelName?: string;
@@ -62,6 +66,8 @@ export interface ConsolidatedInvoice {
   kotCount: number;
   itemCount: number;
   captainNames: string[];
+  customerName?: string;
+  customerGstin?: string;
   paymentMethod: string;
   subtotal: number;
   discount: number;
@@ -72,7 +78,7 @@ export interface ConsolidatedInvoice {
 
 // Settled orders only (paid/cleared) — these are the billable invoices.
 async function fetchInvoices(f: Filters): Promise<IOrder[]> {
-  const p = new URLSearchParams();
+  const p = new URLSearchParams({ settled: "1" });
   if (f.from) p.set("from", f.from);
   if (f.to) p.set("to", f.to + "T23:59:59");
   const res = await fetch(`/api/orders?${p.toString()}`);
@@ -119,6 +125,8 @@ function groupInvoicesByTableSession(orders: IOrder[]): ConsolidatedInvoice[] {
       match.discount += order.discountAmount || 0;
       match.tax += order.tax || 0;
       match.total += order.total || 0;
+      match.customerName ||= order.customerName;
+      match.customerGstin ||= order.customerGstin;
       if (
         order.captainName &&
         !match.captainNames.includes(order.captainName)
@@ -137,6 +145,8 @@ function groupInvoicesByTableSession(orders: IOrder[]): ConsolidatedInvoice[] {
           (i) => i.itemStatus !== "cancelled",
         ).length,
         captainNames: order.captainName ? [order.captainName] : [],
+        customerName: order.customerName,
+        customerGstin: order.customerGstin,
         paymentMethod: order.paymentMethod || "cash",
         subtotal: order.subtotal || 0,
         discount: order.discountAmount || 0,
@@ -210,8 +220,11 @@ export default function InvoicesTable() {
       !q ||
       inv.tableLabel.toLowerCase().includes(q) ||
       inv.kotNumbers.some((k) => k.toLowerCase().includes(q)) ||
-      inv.captainNames.some((c) => c.toLowerCase().includes(q)),
+      inv.captainNames.some((c) => c.toLowerCase().includes(q)) ||
+      (inv.customerName ?? "").toLowerCase().includes(q) ||
+      (inv.customerGstin ?? "").toLowerCase().includes(q),
   );
+  const isPartial = rawOrders.length >= INVOICE_FETCH_LIMIT;
 
   const subtotalTotal = filtered.reduce((s, o) => s + o.subtotal, 0);
   const discountTotal = filtered.reduce((s, o) => s + o.discount, 0);
@@ -221,6 +234,9 @@ export default function InvoicesTable() {
 
   return (
     <div className="space-y-5">
+      {/* Today's total — independent of the date filter below */}
+      <TodayInvoiceSummary />
+
       {/* 1. Executive KPI Summary Cards (Royal Light Theme) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Master Invoices */}
@@ -320,7 +336,7 @@ export default function InvoicesTable() {
               <input
                 type="text"
                 value={filters.query}
-                placeholder="Search table, KOT, captain…"
+                placeholder="Search table, KOT, captain, GSTIN…"
                 onChange={(e) => set("query", e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl pl-9 pr-3 py-2 focus:border-amber-500 focus:bg-white focus:ring-2 focus:ring-amber-500/20 outline-none transition placeholder:text-slate-400 font-medium"
               />
@@ -405,6 +421,14 @@ export default function InvoicesTable() {
         </div>
       )}
 
+      {isPartial && (
+        <div className="rounded-xl bg-amber-50 border border-amber-300 text-amber-900 p-3.5 text-xs font-medium">
+          This date range has more than {INVOICE_FETCH_LIMIT} KOTs — only the most
+          recent are shown, so the totals below are partial. Pick a shorter range
+          for exact totals.
+        </div>
+      )}
+
       {/* 3. Advanced Datatable (Light Theme) */}
       <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-200/40 overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
@@ -458,6 +482,14 @@ export default function InvoicesTable() {
                           <span className="font-bold text-sm text-slate-900 group-hover:text-amber-700 transition-colors">
                             🪑 {inv.tableLabel}
                           </span>
+                          {inv.customerGstin && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-300"
+                              title={`Customer GSTIN: ${inv.customerGstin}`}
+                            >
+                              B2B
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] text-slate-500 mt-0.5 block flex items-center gap-1 font-medium">
                           <Clock className="w-3 h-3 text-slate-400" />

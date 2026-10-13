@@ -8,7 +8,9 @@ import {
   ChevronDown,
   ChevronRight,
   CalendarDays,
+  Filter,
 } from "lucide-react";
+import { format, startOfMonth, subDays } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -39,21 +41,58 @@ export interface ItemWise {
 
 const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
+type Preset = "day" | "yesterday" | "7days" | "month" | "custom";
+
+// "day" = the date picked on the Day-end page.
+const PRESETS: { key: Exclude<Preset, "custom">; label: string }[] = [
+  { key: "day", label: "Selected Day" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "7days", label: "Last 7 Days" },
+  { key: "month", label: "This Month" },
+];
+
 export default function ItemWiseReportModal({
   defaultDate,
 }: {
   defaultDate: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(defaultDate);
+  const [from, setFrom] = useState(defaultDate);
+  const [to, setTo] = useState(defaultDate);
+  const [preset, setPreset] = useState<Preset>("day");
   const [query, setQuery] = useState("");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
+  // An inverted range is tolerated — the API swaps it — but keep the key stable.
+  const [rangeFrom, rangeTo] = from <= to ? [from, to] : [to, from];
+  const isRange = rangeFrom !== rangeTo;
+
   const { data, isLoading } = useQuery<{ itemWise: ItemWise[] }>({
-    queryKey: ["dayend-itemwise", date],
-    queryFn: () => getJSON(`/api/orders/dayend?date=${date}`),
-    enabled: open,
+    queryKey: ["dayend-itemwise", rangeFrom, rangeTo],
+    queryFn: () =>
+      getJSON(`/api/orders/dayend?from=${rangeFrom}&to=${rangeTo}`),
+    enabled: open && !!rangeFrom && !!rangeTo,
   });
+
+  const applyPreset = (p: Preset) => {
+    setPreset(p);
+    const today = new Date();
+    const ymd = (d: Date) => format(d, "yyyy-MM-dd");
+    if (p === "day") {
+      setFrom(defaultDate);
+      setTo(defaultDate);
+    } else if (p === "yesterday") {
+      const y = ymd(subDays(today, 1));
+      setFrom(y);
+      setTo(y);
+    } else if (p === "7days") {
+      setFrom(ymd(subDays(today, 6)));
+      setTo(ymd(today));
+    } else if (p === "month") {
+      setFrom(ymd(startOfMonth(today)));
+      setTo(ymd(today));
+    }
+  };
 
   const filtered = useMemo(() => {
     const list = data?.itemWise ?? [];
@@ -64,6 +103,9 @@ export default function ItemWiseReportModal({
         it.name.toLowerCase().includes(q) || it.category.toLowerCase().includes(q),
     );
   }, [data?.itemWise, query]);
+
+  const totalQty = filtered.reduce((s, it) => s + it.qty, 0);
+  const totalRevenue = filtered.reduce((s, it) => s + it.revenue, 0);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems((prev) => {
@@ -79,7 +121,11 @@ export default function ItemWiseReportModal({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setDate(defaultDate);
+        if (o) {
+          setFrom(defaultDate);
+          setTo(defaultDate);
+          setPreset("day");
+        }
       }}
     >
       <DialogTrigger
@@ -104,16 +150,54 @@ export default function ItemWiseReportModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center gap-2 pb-1">
-          <div className="relative">
-            <CalendarDays className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
+        {/* Date filter: quick presets or a custom from → to range */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <Filter className="w-3.5 h-3.5" /> Filter
+          </span>
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => applyPreset(p.key)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ${
+                preset === p.key
+                  ? "bg-amber-500 text-white shadow-md shadow-amber-500/20 font-bold"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+            <CalendarDays className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="text-slate-600 text-[11px] font-semibold">From:</span>
+            <input
               type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-40 pl-8 bg-white border-slate-300 text-slate-900 rounded-xl font-bold text-xs"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPreset("custom");
+              }}
+              className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer font-medium"
+            />
+            <span className="text-slate-400 text-[11px] px-1">→</span>
+            <span className="text-slate-600 text-[11px] font-semibold">To:</span>
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setPreset("custom");
+              }}
+              className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer font-medium"
             />
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pb-1">
           <div className="relative flex-1 min-w-[180px]">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
@@ -125,6 +209,9 @@ export default function ItemWiseReportModal({
           </div>
           <span className="badge badge-sm bg-amber-50 border-amber-300 text-amber-900 font-bold font-mono shrink-0">
             {filtered.length} Items
+          </span>
+          <span className="badge badge-sm bg-emerald-50 border-emerald-300 text-emerald-900 font-bold font-mono shrink-0">
+            Qty {totalQty} · {formatPrice(totalRevenue)}
           </span>
         </div>
 
@@ -192,7 +279,9 @@ export default function ItemWiseReportModal({
                                 <table className="table table-xs w-full">
                                   <thead>
                                     <tr className="text-[10px] uppercase text-slate-400 font-bold">
-                                      <th className="py-2 px-3">Time</th>
+                                      <th className="py-2 px-3">
+                                        {isRange ? "Date & Time" : "Time"}
+                                      </th>
                                       <th>Table</th>
                                       <th>KOT</th>
                                       <th className="text-right px-3">Qty</th>
@@ -202,6 +291,8 @@ export default function ItemWiseReportModal({
                                     {it.instances.map((inst, i) => (
                                       <tr key={`${inst.orderId}-${i}`}>
                                         <td className="py-1.5 px-3 font-mono font-bold text-slate-700">
+                                          {isRange &&
+                                            `${format(new Date(inst.time), "dd MMM")}, `}
                                           {new Date(inst.time).toLocaleTimeString("en-IN", {
                                             hour: "2-digit",
                                             minute: "2-digit",

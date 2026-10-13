@@ -24,6 +24,9 @@ export interface TableReceiptContentProps {
   isSettledOverride?: boolean;
   customerName?: string;
   customerPhone?: string;
+  customerGstin?: string;
+  cashReceived?: number;
+  changeReturned?: number;
 }
 
 /** Printable combined receipt for a whole table (all KOTs). 80mm thermal style. */
@@ -40,6 +43,9 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
     isSettledOverride,
     customerName,
     customerPhone,
+    customerGstin,
+    cashReceived,
+    changeReturned,
   },
   ref,
 ) {
@@ -72,6 +78,12 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
     customerName || safeKots.find((k) => k.customerName)?.customerName;
   const custPhone =
     customerPhone || safeKots.find((k) => k.customerPhone)?.customerPhone;
+  const custGstin =
+    customerGstin || safeKots.find((k) => k.customerGstin)?.customerGstin;
+  // Tendered cash + change live on the table's anchor KOT.
+  const cashKot = safeKots.find((k) => (k.cashReceived ?? 0) > 0);
+  const cashIn = cashReceived ?? cashKot?.cashReceived ?? 0;
+  const cashBack = changeReturned ?? cashKot?.changeReturned ?? 0;
 
   return (
     <div
@@ -148,6 +160,12 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
             <tr>
               <td>Phone:</td>
               <td style={{ textAlign: "right" }}>{custPhone}</td>
+            </tr>
+          )}
+          {custGstin && (
+            <tr>
+              <td>Cust. GSTIN:</td>
+              <td style={{ textAlign: "right" }}>{custGstin}</td>
             </tr>
           )}
         </tbody>
@@ -228,6 +246,18 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
                 {paymentMethod.replace("_", " ").toUpperCase()}
               </td>
             </tr>
+          )}
+          {isSettled && cashIn > 0 && (
+            <>
+              <tr>
+                <td>Cash Received</td>
+                <td style={{ textAlign: "right" }}>₹{cashIn.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>Change Returned</td>
+                <td style={{ textAlign: "right" }}>₹{cashBack.toFixed(2)}</td>
+              </tr>
+            </>
           )}
           {!isSettled && (
             <tr>

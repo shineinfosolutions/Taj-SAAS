@@ -91,9 +91,14 @@ export interface IOrderDoc extends Document {
   paymentMethod?: "cash" | "card" | "upi";
   paymentAmount?: number;
   splitPayment?: ISplitPaymentEntry[];
+  // Cash tendered by the guest and the change handed back. Informational only —
+  // `paymentAmount` stays the bill amount so cash reports match the drawer.
+  cashReceived?: number;
+  changeReturned?: number;
   cashierId?: mongoose.Types.ObjectId;
   customerName?: string;
   customerPhone?: string;
+  customerGstin?: string; // buyer's GSTIN, printed on the tax invoice (B2B)
   customerEmail?: string;
   customerTier?: string;
   isCustomerMarried?: boolean;
@@ -239,9 +244,12 @@ const OrderSchema = new Schema<IOrderDoc>(
         },
       ],
     },
+    cashReceived: { type: Number },
+    changeReturned: { type: Number },
     cashierId: { type: Schema.Types.ObjectId, ref: "Staff" },
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true, index: true },
+    customerGstin: { type: String, trim: true, uppercase: true },
     customerEmail: { type: String, trim: true },
     customerTier: { type: String },
     isCustomerMarried: { type: Boolean },

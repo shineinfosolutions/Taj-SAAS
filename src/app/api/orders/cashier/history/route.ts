@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
+import { todayInTz, startOfDayTz, endOfDayTz } from "@/lib/time";
 import type { IOrder } from "@/types";
 
 // Today's settled orders for the cashier (reprint / lookup). Cashier + admin.
@@ -12,10 +13,10 @@ export async function GET() {
   }
   await connectDB();
 
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+  // "Today" in the restaurant timezone, not the server's (Vercel runs UTC).
+  const today = todayInTz();
+  const start = startOfDayTz(today);
+  const end = endOfDayTz(today);
 
   const orders = await Order.find({
     status: { $in: ["paid", "cleared"] },

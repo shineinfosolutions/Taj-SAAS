@@ -22,13 +22,23 @@ import {
   Sparkles,
   ShieldCheck,
   Check,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { PaymentMethod, CustomerTier } from "@/types";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 import DiscountControl, { useDiscount } from "@/components/pos/DiscountControl";
 import { formatPrice } from "@/lib/utils";
+import { isValidGstin, normalizeGstin } from "@/lib/gstin";
 import { TableReceiptContent } from "./TableReceipt";
+
+// Round-up cash amounts a guest is likely to hand over for this bill.
+function quickCashAmounts(payable: number): number[] {
+  if (payable <= 0) return [];
+  const up = (step: number) => Math.ceil(payable / step) * step;
+  const candidates = [up(50), up(100), up(500), up(1000), up(1000) + 1000];
+  return [...new Set(candidates)].filter((a) => a > payable).slice(0, 4);
+}
 
 interface PaymentModalProps {
   table: TableBill;
@@ -71,6 +81,7 @@ export default function PaymentModal({
   const [custPhone, setCustPhone] = useState("");
   const [custName, setCustName] = useState("");
   const [custEmail, setCustEmail] = useState("");
+  const [custGstin, setCustGstin] = useState("");
   const [isMarried, setIsMarried] = useState(false);
   const [custDob, setCustDob] = useState("");
   const [custAnniversary, setCustAnniversary] = useState("");
@@ -126,6 +137,36 @@ export default function PaymentModal({
   const split1Num = parseFloat(split1Amount) || payable / 2;
   const split2Num = Math.max(0, Math.round((payable - split1Num) * 100) / 100);
 
+  // Cash handed over by the guest for the cash part of a split bill.
+  const [splitCashGiven, setSplitCashGiven] = useState<string>("");
+  const splitCashDue =
+    Math.round(
+      ((split1Method === "cash" ? split1Num : 0) +
+        (split2Method === "cash" ? split2Num : 0)) *
+        100,
+    ) / 100;
+  const splitCashReceived = parseFloat(splitCashGiven) || splitCashDue;
+  const splitChange = splitCashReceived - splitCashDue;
+
+  // What this payment takes in cash, what the guest tendered, and the change.
+  const cashDue = splitMode ? splitCashDue : method === "cash" ? payable : 0;
+  const cashReceived = splitMode ? splitCashReceived : numAmount;
+  const changeDue = Math.max(
+    0,
+    Math.round((cashReceived - cashDue) * 100) / 100,
+  );
+
+  const gstinValue = normalizeGstin(custGstin);
+  const gstinInvalid = gstinValue.length > 0 && !isValidGstin(gstinValue);
+
+  // Set once the payment is saved and there is change to hand back — keeps the
+  // amount on screen until the cashier confirms.
+  const [paidInfo, setPaidInfo] = useState<{
+    change: number;
+    received: number;
+    due: number;
+  } | null>(null);
+
   // ─── Auto-lookup customer on 10 digits ──────────────────────────────────
   const handlePhoneChange = async (val: string) => {
     const cleaned = val.replace(/\D/g, "").slice(0, 10);
@@ -141,6 +182,7 @@ export default function PaymentModal({
             const c = data.customer;
             setCustName(c.name || "");
             setCustEmail(c.email || "");
+            if (c.gstin) setCustGstin(c.gstin);
             setIsMarried(Boolean(c.isMarried));
             if (c.dob) setCustDob(new Date(c.dob).toISOString().slice(0, 10));
             if (c.anniversaryDate)
@@ -217,6 +259,10 @@ export default function PaymentModal({
       toast.error("Please enter a valid 10-digit Customer Mobile Number");
       return;
     }
+    if (gstinInvalid) {
+      toast.error("Customer GSTIN is not valid — it must be 15 characters");
+      return;
+    }
     if (disc.calc.error) {
       toast.error(disc.calc.error);
       return;
@@ -233,6 +279,10 @@ export default function PaymentModal({
       toast.error("Split amounts must add up to the total");
       return;
     }
+    if (splitMode && splitCashDue > 0 && splitChange < 0) {
+      toast.error("Cash received is less than the cash part of the bill");
+      return;
+    }
     setLoading(true);
     try {
       const basePayload = {
@@ -242,6 +292,8 @@ export default function PaymentModal({
         customerPhone: custPhone,
         customerName: custName || "Guest",
         customerEmail: custEmail || undefined,
+        customerGstin: gstinValue || undefined,
+        cashReceived: cashDue > 0 ? cashReceived : undefined,
         customerTier: custTier || "new",
         isCustomerMarried: isMarried,
         customerDob: !isMarried && custDob ? custDob : undefined,
@@ -268,7 +320,7 @@ export default function PaymentModal({
         : {
             ...basePayload,
             paymentMethod: method,
-            paymentAmount: numAmount,
+            paymentAmount: payable,
           };
 
       const res = await fetch(`/api/orders/${table.anchorKotId}`, {
@@ -286,7 +338,11 @@ export default function PaymentModal({
       } catch (printErr) {
         console.error("Browser print error:", printErr);
       }
-      onPaid();
+      if (cashDue > 0 && changeDue > 0) {
+        setPaidInfo({ change: changeDue, received: cashReceived, due: cashDue });
+      } else {
+        onPaid();
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to process payment");
     } finally {
@@ -301,7 +357,7 @@ export default function PaymentModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
-        onClick={onClose}
+        onClick={paidInfo ? onPaid : onClose}
       >
         <motion.div
           initial={{ scale: 0.94, opacity: 0, y: 15 }}
@@ -327,7 +383,7 @@ export default function PaymentModal({
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={paidInfo ? onPaid : onClose}
               className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-white cursor-pointer"
               aria-label="Close payment modal"
             >
@@ -335,8 +391,40 @@ export default function PaymentModal({
             </button>
           </div>
 
+          {/* Payment saved — keep the change on screen until the cashier confirms */}
+          {paidInfo && (
+            <div className="p-6 flex-1 flex flex-col items-center justify-center text-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">Payment Recorded</p>
+                <p className="text-[11px] text-white/60 mt-0.5">
+                  Cash received {formatPrice(paidInfo.received)} · Cash due{" "}
+                  {formatPrice(paidInfo.due)}
+                </p>
+              </div>
+              <div className="w-full rounded-2xl bg-emerald-500/15 border border-emerald-500/40 p-4">
+                <p className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                  Return to customer
+                </p>
+                <p className="font-mono font-black text-4xl text-emerald-400 mt-1">
+                  {formatPrice(paidInfo.change)}
+                </p>
+              </div>
+              <button
+                onClick={onPaid}
+                className="btn bg-amber-400 hover:bg-amber-300 text-black font-extrabold w-full text-sm rounded-xl border-none h-11 min-h-0"
+              >
+                Done — Change Returned
+              </button>
+            </div>
+          )}
+
           {/* Body */}
-          <div className="p-3.5 overflow-y-auto space-y-3 flex-1">
+          <div
+            className={`p-3.5 overflow-y-auto space-y-3 flex-1 ${paidInfo ? "hidden" : ""}`}
+          >
             {/* 1. CUSTOMER VERIFICATION & CRM SECTION */}
             <div className="bg-[#1c1c1c] border border-amber-400/30 rounded-2xl p-3 space-y-2.5 shadow-inner">
               <div className="flex items-center justify-between">
@@ -441,6 +529,35 @@ export default function PaymentModal({
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Customer GSTIN — optional, printed on the invoice; GST charged is unchanged */}
+              <div className="space-y-1 pt-1 border-t border-white/10">
+                <label className="text-[10px] text-white/60 font-semibold flex items-center gap-1">
+                  <Building2 className="w-3 h-3 text-amber-400" /> Customer GSTIN
+                  (Optional — prints on invoice)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 09ABCDE1234F1Z5"
+                  value={custGstin}
+                  onChange={(e) =>
+                    setCustGstin(normalizeGstin(e.target.value).slice(0, 15))
+                  }
+                  maxLength={15}
+                  autoComplete="off"
+                  spellCheck="false"
+                  className={`input input-sm input-bordered bg-[#262626] text-white font-mono font-bold w-full rounded-xl h-8 text-xs tracking-wider ${
+                    gstinInvalid
+                      ? "border-rose-500 focus:border-rose-500"
+                      : "border-white/20 focus:border-amber-400"
+                  }`}
+                />
+                {gstinInvalid && (
+                  <p className="text-[10px] text-rose-400 font-semibold">
+                    GSTIN must be 15 characters, e.g. 09ABCDE1234F1Z5
+                  </p>
+                )}
               </div>
 
               {/* Dynamic DOB or Anniversary Input */}
@@ -653,25 +770,58 @@ export default function PaymentModal({
 
                   {/* Cash amount received input */}
                   {method === "cash" && (
-                    <div className="p-2 rounded-xl bg-white/5 border border-white/10 space-y-1">
-                      <div className="flex justify-between items-center text-[11px]">
-                        <label className="text-white/70 font-semibold">
-                          Amount Received (₹)
-                        </label>
-                        {change >= 0 && (
-                          <span className="font-bold text-emerald-400">
-                            Change: {formatPrice(change)}
-                          </span>
-                        )}
-                      </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-2">
+                      <label className="text-[11px] text-white/70 font-semibold block">
+                        Cash Received (₹)
+                      </label>
                       <input
                         type="number"
                         value={amount}
                         onChange={(e) => setAmountOverride(e.target.value)}
-                        className="input input-sm input-bordered bg-[#202020] border-white/20 text-white font-mono font-bold text-sm w-full rounded-lg h-8"
+                        className="input input-sm input-bordered bg-[#202020] border-white/20 text-white font-mono font-bold text-base w-full rounded-lg h-9"
                         min={0}
                         step="0.01"
                       />
+                      {/* Quick cash: exact amount + likely notes */}
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setAmountOverride(null)}
+                          className="btn btn-xs rounded-lg font-bold h-7 min-h-0 text-[11px] bg-white/10 text-white border-white/15 hover:bg-white/20"
+                        >
+                          Exact
+                        </button>
+                        {quickCashAmounts(payable).map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            onClick={() => setAmountOverride(String(a))}
+                            className="btn btn-xs rounded-lg font-bold font-mono h-7 min-h-0 text-[11px] bg-white/10 text-white border-white/15 hover:bg-white/20"
+                          >
+                            ₹{a}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Change to hand back */}
+                      {change >= 0 ? (
+                        <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/40 px-3 py-2 flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">
+                            Return to customer
+                          </span>
+                          <span className="font-mono font-black text-2xl text-emerald-400">
+                            {formatPrice(change)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl bg-rose-500/15 border border-rose-500/40 px-3 py-2 flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold uppercase tracking-wider text-rose-300">
+                            Still to collect
+                          </span>
+                          <span className="font-mono font-black text-2xl text-rose-400">
+                            {formatPrice(-change)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -736,13 +886,57 @@ export default function PaymentModal({
                       ))}
                     </div>
                   </div>
+
+                  {/* Cash part of the split: tendered cash + change */}
+                  {splitCashDue > 0 && (
+                    <div className="space-y-1.5 pt-1.5 border-t border-white/10">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[10px] font-extrabold text-amber-400 uppercase">
+                          Cash Received (cash part {formatPrice(splitCashDue)})
+                        </p>
+                      </div>
+                      <input
+                        type="number"
+                        placeholder={`₹${splitCashDue.toFixed(2)}`}
+                        value={splitCashGiven}
+                        onChange={(e) => setSplitCashGiven(e.target.value)}
+                        className="input input-xs input-bordered bg-[#202020] border-white/20 text-white font-mono font-bold w-full rounded-lg h-7"
+                        min={0}
+                        step="0.01"
+                      />
+                      <div
+                        className={`rounded-lg px-2.5 py-1.5 flex items-center justify-between border ${
+                          splitChange >= 0
+                            ? "bg-emerald-500/15 border-emerald-500/40"
+                            : "bg-rose-500/15 border-rose-500/40"
+                        }`}
+                      >
+                        <span
+                          className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                            splitChange >= 0 ? "text-emerald-300" : "text-rose-300"
+                          }`}
+                        >
+                          {splitChange >= 0 ? "Return to customer" : "Still to collect"}
+                        </span>
+                        <span
+                          className={`font-mono font-black text-lg ${
+                            splitChange >= 0 ? "text-emerald-400" : "text-rose-400"
+                          }`}
+                        >
+                          {formatPrice(Math.abs(splitChange))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           {/* Footer Action Button */}
-          <div className="p-3 border-t border-white/10 bg-white/3 flex shrink-0">
+          <div
+            className={`p-3 border-t border-white/10 bg-white/3 flex shrink-0 ${paidInfo ? "hidden" : ""}`}
+          >
             <button
               onClick={handlePay}
               disabled={loading}
@@ -776,6 +970,9 @@ export default function PaymentModal({
               isSettledOverride={true}
               customerName={custName || undefined}
               customerPhone={custPhone || undefined}
+              customerGstin={gstinValue || undefined}
+              cashReceived={cashDue > 0 ? cashReceived : undefined}
+              changeReturned={cashDue > 0 ? changeDue : undefined}
             />
           </div>
         </motion.div>

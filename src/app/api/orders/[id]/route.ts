@@ -10,6 +10,7 @@ import { Voucher } from "@/lib/db/models/Voucher";
 import { withTransaction } from "@/lib/db/withTransaction";
 import { billOrderTotals, type Discount } from "@/lib/billing";
 import { checkDiscountAllowed } from "@/lib/discount-guard";
+import { isValidGstin, normalizeGstin } from "@/lib/gstin";
 
 import bcrypt from "bcryptjs";
 import Staff from "@/lib/db/models/Staff";
@@ -473,6 +474,16 @@ export async function PATCH(
         );
       }
 
+      // Optional buyer GSTIN (B2B invoice). Printed on the bill only — it never
+      // changes the GST charged.
+      const customerGstin = normalizeGstin(body.customerGstin);
+      if (customerGstin && !isValidGstin(customerGstin)) {
+        return NextResponse.json(
+          { error: "Customer GSTIN is not valid (15 characters)" },
+          { status: 400 },
+        );
+      }
+
       // Resolve primary method (first split entry or single method)
       const primaryMethod = splitPayment?.[0]?.method ?? paymentMethod;
       const now = new Date();
@@ -596,6 +607,31 @@ export async function PATCH(
           throw new Error("Split amounts do not add up to the table total");
         }
 
+        // Cash tendered vs. cash owed → change to hand back. The cash owed is
+        // the whole bill for a single cash payment, or just the cash part(s)
+        // of a split.
+        const cashDue = splitPayment
+          ? splitPayment.reduce(
+              (acc: number, p: { method: string; amount: number }) =>
+                acc + (p.method === "cash" ? p.amount || 0 : 0),
+              0,
+            )
+          : primaryMethod === "cash"
+            ? tableTotal
+            : 0;
+        // Older clients sent the tendered cash as `paymentAmount`.
+        const cashReceived = Number(
+          body.cashReceived ?? (splitPayment ? 0 : (paymentAmount ?? 0)),
+        );
+        const hasCashTendered =
+          cashDue > 0 && Number.isFinite(cashReceived) && cashReceived > 0;
+        if (hasCashTendered && cashReceived < cashDue - tol) {
+          throw new Error("Cash received is less than the amount due");
+        }
+        const changeReturned = hasCashTendered
+          ? Math.max(0, Math.round((cashReceived - cashDue) * 100) / 100)
+          : 0;
+
         for (const o of activeOrders) {
           // Collecting payment = order done → mark every active item delivered.
           for (const item of o.items) {
@@ -624,6 +660,7 @@ export async function PATCH(
             if (body.customerDob) o.customerDob = new Date(body.customerDob);
             if (body.customerAnniversary) o.customerAnniversary = new Date(body.customerAnniversary);
           }
+          if (customerGstin) o.customerGstin = customerGstin;
           if (body.voucherCode) {
             o.voucherCode = body.voucherCode.trim().toUpperCase();
             o.voucherDiscount = body.voucherDiscount || 0;
@@ -634,9 +671,15 @@ export async function PATCH(
             o.billPrinted = false;
           }
           // Record actual amount + split details on the "anchor" order.
+          // The recorded amount is always the bill amount — tendered cash and
+          // change are kept separately so cash reports match the drawer.
           if (o._id.toString() === id) {
-            o.paymentAmount = totalPaid;
+            o.paymentAmount = splitPayment ? totalPaid : tableTotal;
             if (splitPayment) o.splitPayment = splitPayment;
+            if (hasCashTendered) {
+              o.cashReceived = cashReceived;
+              o.changeReturned = changeReturned;
+            }
           }
           await o.save({ session: s });
         }
@@ -651,6 +694,7 @@ export async function PATCH(
             if (body.isCustomerMarried !== undefined) cust.isMarried = Boolean(body.isCustomerMarried);
             if (body.customerDob) cust.dob = new Date(body.customerDob);
             if (body.customerAnniversary) cust.anniversaryDate = new Date(body.customerAnniversary);
+            if (customerGstin) cust.gstin = customerGstin;
             cust.totalVisits += 1;
             cust.totalSpend += Number(tableTotal);
             cust.lastVisitAt = now;
@@ -663,6 +707,7 @@ export async function PATCH(
                   name: body.customerName?.trim() || "Guest",
                   phone: cleanPhone,
                   email: body.customerEmail?.trim(),
+                  gstin: customerGstin || undefined,
                   isMarried: Boolean(body.isCustomerMarried),
                   dob: body.customerDob ? new Date(body.customerDob) : undefined,
                   anniversaryDate: body.customerAnniversary
@@ -730,6 +775,8 @@ export async function PATCH(
         order.paymentMethod = undefined;
         order.paymentAmount = undefined;
         order.splitPayment = undefined;
+        order.cashReceived = undefined;
+        order.changeReturned = undefined;
         order.paidAt = undefined;
         order.clearedAt = undefined;
         // Clear the discount too — it's re-decided on the next settlement, and

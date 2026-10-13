@@ -31,7 +31,11 @@ export async function GET(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query: Record<string, any> = {};
+  // ?settled=1 — invoices view: settled bills only, with a much higher cap so
+  // a week's totals aren't cut off by cancelled/active orders or the row limit.
+  const settledOnly = searchParams.get("settled") === "1";
   if (status) query.status = status;
+  else if (settledOnly) query.status = { $in: ["paid", "cleared"] };
   if (tableId) query.tableId = tableId;
   if (captainId) query.captainId = captainId;
   if (from || to) {
@@ -50,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   const orders = await Order.find(query)
     .sort({ createdAt: -1 })
-    .limit(200)
+    .limit(settledOnly ? 2000 : 200)
     .lean<IOrder[]>();
 
   return NextResponse.json(orders);

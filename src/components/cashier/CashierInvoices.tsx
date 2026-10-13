@@ -7,6 +7,7 @@ import { FileText, ArrowLeft, Search, Receipt, CheckCircle2, Clock } from "lucid
 import { formatPrice } from "@/lib/utils";
 import { Pill } from "@/components/ui/Pill";
 import { BillPrintButton } from "./TableReceipt";
+import TodayInvoiceSummary from "@/components/reports/TodayInvoiceSummary";
 import type { IOrder } from "@/types";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 
@@ -212,6 +213,11 @@ export default function CashierInvoices({ onExit }: Props) {
           </button>
         </div>
       </header>
+
+      {/* Today's total */}
+      <div className="px-3 pt-3 shrink-0">
+        <TodayInvoiceSummary />
+      </div>
 
       {/* Search Filter */}
       <div className="p-3 border-b border-slate-200 bg-white/50 shrink-0">

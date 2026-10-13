@@ -7,7 +7,8 @@ import "@/lib/db/models/Category"; // registers the schema so populate("category
 
 /**
  * Day-end / sales summary for a date (default today), based on settled orders.
- * ?date=YYYY-MM-DD. Admin + cashier only.
+ * ?date=YYYY-MM-DD, or ?from=YYYY-MM-DD&to=YYYY-MM-DD for a custom range.
+ * Admin + cashier only.
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -18,8 +19,14 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
-  const start = new Date(`${date}T00:00:00.000`);
-  const end = new Date(`${date}T23:59:59.999`);
+  // Optional custom range (?from=&to=, inclusive) — falls back to the single date.
+  const ymd = (v: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  let from = ymd(searchParams.get("from")) ?? ymd(searchParams.get("to")) ?? date;
+  let to = ymd(searchParams.get("to")) ?? from;
+  if (from > to) [from, to] = [to, from];
+  const start = new Date(`${from}T00:00:00.000`);
+  const end = new Date(`${to}T23:59:59.999`);
 
   // Settled orders this day (paid/cleared).
   const settled = await Order.find({
@@ -148,7 +155,9 @@ export async function GET(req: NextRequest) {
   void byCategory;
 
   return NextResponse.json({
-    date,
+    date: from,
+    from,
+    to,
     orderCount: settled.length,
     sales: Math.round(sales * 100) / 100,
     tax: Math.round(tax * 100) / 100,
