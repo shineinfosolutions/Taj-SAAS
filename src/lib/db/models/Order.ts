@@ -78,6 +78,9 @@ export interface IOrderDoc extends Document {
   subtotal: number;
   tax?: number;
   total: number;
+  // Bill round-off to whole rupees, already included in `total`. For a table
+  // bill it sits on the anchor KOT so the KOT totals add up to the amount paid.
+  roundOff?: number;
   pricesIncludeTax?: boolean; // snapshot of the GST setting at order time
   billTaxRatePercent?: number; // bill-level GST % snapshot
   // Bill-level discount applied at billing time (pre-GST). For a table paid as
@@ -219,6 +222,7 @@ const OrderSchema = new Schema<IOrderDoc>(
     subtotal: { type: Number, required: true },
     tax: { type: Number },
     total: { type: Number, required: true },
+    roundOff: { type: Number },
     pricesIncludeTax: { type: Boolean, default: false },
     billTaxRatePercent: { type: Number, default: 0 },
     discountType: { type: String, enum: ["percent", "flat"] },

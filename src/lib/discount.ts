@@ -50,7 +50,8 @@ export function computeDiscount(
   const percentOfNet = cfg.net > 0 ? (amount / cfg.net) * 100 : 0;
   const taxable = cfg.net - amount;
   const tax = round2(taxable * cfg.rate);
-  const payable = round2(taxable + tax);
+  // Whole rupees — the round-off is shown on the bill (see roundBill).
+  const payable = Math.round(round2(taxable + tax));
   const needsPin = cfg.hasPin && percentOfNet > cfg.threshold + 0.01;
 
   let error: string | null = null;

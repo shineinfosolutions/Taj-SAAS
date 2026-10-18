@@ -30,6 +30,7 @@ import type { TableBill } from "@/app/api/orders/cashier/route";
 import DiscountControl, { useDiscount } from "@/components/pos/DiscountControl";
 import { formatPrice } from "@/lib/utils";
 import { isValidGstin, normalizeGstin } from "@/lib/gstin";
+import { roundBill } from "@/lib/billing";
 import { TableReceiptContent } from "./TableReceipt";
 
 // Round-up cash amounts a guest is likely to hand over for this bill.
@@ -119,11 +120,12 @@ export default function PaymentModal({
   const totalDiscount = Math.min(net, disc.calc.amount + voucherDiscount);
   const discountedNet = Math.max(0, net - totalDiscount);
   const tax = table.gstEnabled ? Math.round(discountedNet * rate * 100) / 100 : 0;
-  const payable = Math.round((discountedNet + tax) * 100) / 100;
+  // Whole rupees; the paise go on the bill as "Round Off".
+  const { total: payable, roundOff } = roundBill(discountedNet + tax);
 
   // Cash "amount received": defaults to the amount due
   const [amountOverride, setAmountOverride] = useState<string | null>(null);
-  const amount = amountOverride ?? payable.toFixed(2);
+  const amount = amountOverride ?? String(payable);
 
   // Split payment state
   const [splitMode, setSplitMode] = useState(false);
@@ -134,7 +136,7 @@ export default function PaymentModal({
   const numAmount = parseFloat(amount) || 0;
   const change = numAmount - payable;
 
-  const split1Num = parseFloat(split1Amount) || payable / 2;
+  const split1Num = parseFloat(split1Amount) || Math.round(payable / 2);
   const split2Num = Math.max(0, Math.round((payable - split1Num) * 100) / 100);
 
   // Cash handed over by the guest for the cash part of a split bill.
@@ -711,6 +713,14 @@ export default function PaymentModal({
                   )}
                 </>
               )}
+              {roundOff !== 0 && (
+                <div className="flex justify-between text-white/70 text-[11px]">
+                  <span>Round Off</span>
+                  <span className="text-white">
+                    {roundOff > 0 ? "+" : "−"} ₹{Math.abs(roundOff).toFixed(2)}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-baseline font-extrabold text-base border-t border-white/10 pt-1 text-white">
                 <span className="text-xs font-bold">Total Payable</span>
                 <span className="font-mono text-xl text-amber-400 font-extrabold">
@@ -850,7 +860,7 @@ export default function PaymentModal({
                     </div>
                     <input
                       type="number"
-                      placeholder={`₹${(payable / 2).toFixed(2)}`}
+                      placeholder={`₹${Math.round(payable / 2)}`}
                       value={split1Amount}
                       onChange={(e) => setSplit1Amount(e.target.value)}
                       className="input input-xs input-bordered bg-[#202020] border-white/20 text-white font-mono font-bold w-full rounded-lg h-7"
@@ -897,7 +907,7 @@ export default function PaymentModal({
                       </div>
                       <input
                         type="number"
-                        placeholder={`₹${splitCashDue.toFixed(2)}`}
+                        placeholder={`₹${splitCashDue}`}
                         value={splitCashGiven}
                         onChange={(e) => setSplitCashGiven(e.target.value)}
                         className="input input-xs input-bordered bg-[#202020] border-white/20 text-white font-mono font-bold w-full rounded-lg h-7"

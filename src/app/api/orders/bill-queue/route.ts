@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     .sort({ updatedAt: 1 })
     .limit(50)
     .select(
-      "kotNumber tableLabel captainName items subtotal discountAmount tax total paymentMethod createdAt customerName customerPhone customerGstin cashReceived changeReturned",
+      "kotNumber tableLabel captainName items subtotal discountAmount tax total roundOff paymentMethod createdAt customerName customerPhone customerGstin cashReceived changeReturned",
     )
     .lean();
 
@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
     discount: o.discountAmount ?? 0,
     tax: o.tax ?? 0,
     total: o.total,
+    roundOff: o.roundOff ?? 0,
     paymentMethod: o.paymentMethod,
     customerName: o.customerName,
     customerPhone: o.customerPhone,

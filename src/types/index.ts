@@ -176,6 +176,7 @@ export interface IOrder {
   subtotal: number;
   tax?: number;
   total: number;
+  roundOff?: number;
   discountType?: "percent" | "flat";
   discountValue?: number;
   discountAmount?: number;

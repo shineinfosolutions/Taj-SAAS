@@ -8,7 +8,7 @@ import Branding from "@/lib/db/models/Branding";
 import { Customer, computeCustomerTier } from "@/lib/db/models/Customer";
 import { Voucher } from "@/lib/db/models/Voucher";
 import { withTransaction } from "@/lib/db/withTransaction";
-import { billOrderTotals, type Discount } from "@/lib/billing";
+import { billOrderTotals, roundBill, type Discount } from "@/lib/billing";
 import { checkDiscountAllowed } from "@/lib/discount-guard";
 import { isValidGstin, normalizeGstin } from "@/lib/gstin";
 
@@ -404,9 +404,11 @@ export async function PATCH(
         if (!chk.ok) {
           return NextResponse.json({ error: chk.error }, { status: chk.status });
         }
+        const rounded = roundBill(t.total);
         order.subtotal = t.subtotal;
         order.tax = t.tax;
-        order.total = t.total;
+        order.total = rounded.total;
+        order.roundOff = rounded.roundOff || undefined;
         order.discountAmount = t.discount;
         order.discountType = discountPC?.type;
         order.discountValue = discountPC?.value;
@@ -598,11 +600,34 @@ export async function PATCH(
             )
           : (paymentAmount ?? tableTotal);
 
-        // Reject a split that doesn't reconcile to the bill. Tolerance scales
-        // with KOT count: tableTotal sums per-KOT (2dp-rounded) totals, while
-        // the client sees a single-rounded payable, so up to ~½ paise per KOT
-        // can legitimately differ.
+        // Tolerance scales with KOT count: tableTotal sums per-KOT
+        // (2dp-rounded) totals, while the client sees a single-rounded
+        // payable, so up to ~½ paise per KOT can legitimately differ.
         const tol = 0.01 + activeOrders.length * 0.01;
+
+        // Round the bill to whole rupees. If the client's own rounded amount is
+        // within half a rupee of the exact total, use it, so a bill sitting
+        // right on ₹x.50 can't round one way on screen and the other here.
+        const exactTotal = tableTotal;
+        const clientTotal = Math.round(totalPaid * 100) / 100;
+        tableTotal =
+          Number.isInteger(clientTotal) &&
+          Math.abs(clientTotal - exactTotal) <= 0.5 + tol
+            ? clientTotal
+            : roundBill(exactTotal).total;
+        const tableRoundOff = Math.round((tableTotal - exactTotal) * 100) / 100;
+        // The round-off lives on the anchor KOT so KOT totals sum to the bill.
+        const roundOffOrder =
+          activeOrders.find((o) => o._id.toString() === id) ??
+          activeOrders[activeOrders.length - 1];
+        for (const o of activeOrders) o.roundOff = undefined;
+        if (roundOffOrder && tableRoundOff !== 0) {
+          roundOffOrder.total =
+            Math.round((roundOffOrder.total + tableRoundOff) * 100) / 100;
+          roundOffOrder.roundOff = tableRoundOff;
+        }
+
+        // Reject a split that doesn't reconcile to the bill.
         if (splitPayment && Math.abs(totalPaid - tableTotal) > tol) {
           throw new Error("Split amounts do not add up to the table total");
         }
@@ -777,6 +802,7 @@ export async function PATCH(
         order.splitPayment = undefined;
         order.cashReceived = undefined;
         order.changeReturned = undefined;
+        order.roundOff = undefined;
         order.paidAt = undefined;
         order.clearedAt = undefined;
         // Clear the discount too — it's re-decided on the next settlement, and

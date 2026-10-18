@@ -21,6 +21,18 @@ export interface OrderTotals {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
+ * Bill round-off: the customer pays whole rupees (₹837.05 → ₹837, ₹837.50 →
+ * ₹838). GST stays exact; the difference is shown as a "Round Off" line.
+ */
+export function roundBill(exactTotal: number): {
+  total: number;
+  roundOff: number;
+} {
+  const total = Math.round(round2(exactTotal));
+  return { total, roundOff: round2(total - exactTotal) };
+}
+
+/**
  * Single source of truth for bill totals. Given an order's line items, the
  * CURRENT branding GST settings, and an optional bill-level discount, compute
  * subtotal / discount / tax / total.

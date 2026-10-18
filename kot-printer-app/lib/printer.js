@@ -173,6 +173,16 @@ async function printBill(config, order, branding = {}) {
       { text: money(order.tax / 2), align: "RIGHT", width: 0.4 },
     ]);
   }
+  if (order.roundOff) {
+    p.tableCustom([
+      { text: "Round Off", align: "LEFT", width: 0.6 },
+      {
+        text: (order.roundOff > 0 ? "+" : "-") + money(Math.abs(order.roundOff)),
+        align: "RIGHT",
+        width: 0.4,
+      },
+    ]);
+  }
   p.bold(true);
   p.tableCustom([
     { text: "TOTAL", align: "LEFT", width: 0.6 },

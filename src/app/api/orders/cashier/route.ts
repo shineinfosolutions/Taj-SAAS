@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
 import Branding from "@/lib/db/models/Branding";
-import { billOrderTotals } from "@/lib/billing";
+import { billOrderTotals, roundBill } from "@/lib/billing";
 import type { IOrder } from "@/types";
 
 export interface TableBill {
@@ -12,7 +12,8 @@ export interface TableBill {
   kots: IOrder[];
   subtotal: number; // net of GST (sum across KOTs)
   tax: number; // total GST (CGST + SGST)
-  total: number; // amount to collect (GST-inclusive)
+  total: number; // amount to collect (GST-inclusive), rounded to whole rupees
+  roundOff: number; // total minus the exact amount
   itemCount: number;
   since: string; // createdAt of oldest KOT
   anchorKotId: string; // first KOT id — used for pay_table API call
@@ -100,13 +101,15 @@ export async function GET() {
         sum + k.items.filter((i) => i.itemStatus !== "cancelled").length,
       0,
     );
+    const rounded = roundBill(total);
     tables.push({
       tableId,
       tableLabel: kots[0].tableLabel,
       kots,
       subtotal: Math.round(subtotal * 100) / 100,
       tax: Math.round(tax * 100) / 100,
-      total: Math.round(total * 100) / 100,
+      total: rounded.total,
+      roundOff: rounded.roundOff,
       itemCount,
       since: kots[0].createdAt,
       anchorKotId: kots[0]._id,

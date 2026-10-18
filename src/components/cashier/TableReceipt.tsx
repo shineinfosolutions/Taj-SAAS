@@ -63,15 +63,22 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
     taxOverride !== undefined
       ? taxOverride
       : safeKots.reduce((s, k) => s + (k.tax ?? 0), 0);
-  const total =
-    totalOverride !== undefined
-      ? totalOverride
-      : safeKots.reduce((s, k) => s + (k.total ?? 0), 0);
   const isSettled =
     isSettledOverride !== undefined
       ? isSettledOverride
       : safeKots.length > 0 &&
         safeKots.every((k) => ["paid", "cleared"].includes(k.status));
+  // Whole rupees, with the paise shown as "Round Off". A settled bill is
+  // reprinted exactly as it was charged (its round-off is already inside a KOT
+  // total; bills settled before round-off existed keep their paise).
+  const storedTotal = safeKots.reduce((s, k) => s + (k.total ?? 0), 0);
+  const fromStore = totalOverride === undefined && isSettled;
+  const total = fromStore
+    ? Math.round(storedTotal * 100) / 100
+    : Math.round(totalOverride ?? storedTotal);
+  const roundOff = fromStore
+    ? Math.round(safeKots.reduce((s, k) => s + (k.roundOff ?? 0), 0) * 100) / 100
+    : Math.round((total - (subtotal - discount + tax)) * 100) / 100;
   const paymentMethod =
     paymentMethodOverride || safeKots.find((k) => k.paymentMethod)?.paymentMethod;
   const custName =
@@ -233,10 +240,18 @@ export const TableReceiptContent = forwardRef<HTMLDivElement, TableReceiptConten
               </tr>
             </>
           )}
+          {roundOff !== 0 && (
+            <tr>
+              <td>Round Off</td>
+              <td style={{ textAlign: "right" }}>
+                {roundOff > 0 ? "+" : "−"} ₹{Math.abs(roundOff).toFixed(2)}
+              </td>
+            </tr>
+          )}
           <tr>
             <td style={{ fontWeight: "bold", fontSize: 13 }}>TOTAL</td>
             <td style={{ textAlign: "right", fontWeight: "bold", fontSize: 13 }}>
-              ₹{total.toFixed(2)}
+              ₹{Number.isInteger(total) ? total : total.toFixed(2)}
             </td>
           </tr>
           {isSettled && paymentMethod && (
