@@ -3,8 +3,9 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ChevronDown, ChevronRight, Filter, DownloadCloud } from "lucide-react";
+import { ChevronDown, ChevronRight, Filter, DownloadCloud, Printer } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { kotPrintState, type KotPrintState } from "@/lib/kot-print";
 import type { IOrder, OrderStatus } from "@/types";
 import { pillCls } from "@/components/ui/Pill";
 import type { PillVariant } from "@/components/ui/Pill";
@@ -26,6 +27,27 @@ const STATUS_PILL: Record<string, PillVariant> = {
   paid: "success",
   cleared: "ghost",
   cancelled: "error",
+};
+
+const KOT_PRINT_META: Record<
+  KotPrintState,
+  { label: string; cls: string; title: string }
+> = {
+  printed: {
+    label: "Printed",
+    cls: "bg-emerald-50 text-emerald-800 border-emerald-300",
+    title: "KOT printed by the kitchen printer",
+  },
+  not_printed: {
+    label: "Not Printed",
+    cls: "bg-rose-50 text-rose-800 border-rose-300",
+    title: "KOT has not been printed yet",
+  },
+  untracked: {
+    label: "Not recorded",
+    cls: "bg-slate-50 text-slate-500 border-slate-200",
+    title: "Print status was not recorded before 19 Oct 2026, 10:27 PM",
+  },
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -77,6 +99,8 @@ function exportCSV(orders: IOrder[]) {
       "Cancelled By",
       "Cancel Reason",
       "Payment",
+      "KOT Print",
+      "KOT Printed At",
       "Date",
     ],
     ...orders.map((o) => [
@@ -89,6 +113,8 @@ function exportCSV(orders: IOrder[]) {
       o.cancelledByName || o.voidedByName || "",
       o.cancelReason || o.voidReason || "",
       o.paymentMethod ?? "",
+      KOT_PRINT_META[kotPrintState(o)].label,
+      o.kotPrintedAt ? format(new Date(o.kotPrintedAt), "dd MMM yyyy HH:mm:ss") : "",
       format(new Date(o.createdAt), "dd MMM yyyy HH:mm"),
     ]),
   ];
@@ -112,6 +138,7 @@ function OrderRow({ order }: { order: IOrder }) {
   });
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+  const printState = kotPrintState(order);
   return (
     <>
       <tr className="hover border-b border-base-300">
@@ -174,13 +201,31 @@ function OrderRow({ order }: { order: IOrder }) {
         <td className="text-xs text-base-content/50">
           {order.paymentMethod ? PAYMENT_LABELS[order.paymentMethod] : "—"}
         </td>
+        <td>
+          <span
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold whitespace-nowrap ${KOT_PRINT_META[printState].cls}`}
+            title={KOT_PRINT_META[printState].title}
+          >
+            <Printer className="w-3 h-3" />
+            {KOT_PRINT_META[printState].label}
+          </span>
+        </td>
+        <td className="text-xs whitespace-nowrap">
+          {order.kotPrintedAt ? (
+            <span className="font-mono font-semibold text-base-content/70">
+              {format(new Date(order.kotPrintedAt), "dd MMM, hh:mm:ss a")}
+            </span>
+          ) : (
+            <span className="text-base-content/30">—</span>
+          )}
+        </td>
         <td className="text-xs text-base-content/40">
           {format(new Date(order.createdAt), "dd MMM, HH:mm")}
         </td>
       </tr>
       {open && (
         <tr className="bg-base-200/60">
-          <td colSpan={9} className="px-6 py-3">
+          <td colSpan={11} className="px-6 py-3">
             <div className="text-xs space-y-1">
               {order.specialInstructions && (
                 <p className="text-amber-400 mb-2">
@@ -445,6 +490,8 @@ export default function OrdersTableClient({
                 <th>Total</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>KOT Print</th>
+                <th>Printed At</th>
                 <th>Date</th>
               </tr>
             </thead>
@@ -452,7 +499,7 @@ export default function OrdersTableClient({
               {!isLoading && filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={11}
                     className="text-center py-10 text-base-content/30 text-sm"
                   >
                     No orders match the selected filters.
