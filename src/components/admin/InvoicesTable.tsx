@@ -23,6 +23,15 @@ import { formatPrice } from "@/lib/utils";
 import type { IOrder } from "@/types";
 import { BillPrintButton } from "@/components/cashier/TableReceipt";
 import TodayInvoiceSummary from "@/components/reports/TodayInvoiceSummary";
+import { kotPrintState, summarizeKotPrint } from "@/lib/kot-print";
+
+type KotFilter = "all" | "printed" | "not_printed";
+
+const KOT_CHIP_STYLE = {
+  printed: "bg-emerald-50 text-emerald-800 border-emerald-300",
+  not_printed: "bg-rose-50 text-rose-800 border-rose-300",
+  untracked: "bg-slate-50 text-slate-500 border-slate-200",
+} as const;
 
 // Server cap on one invoices fetch — if a range hits it, the totals are partial.
 const INVOICE_FETCH_LIMIT = 2000;
@@ -166,6 +175,32 @@ function groupInvoicesByTableSession(orders: IOrder[]): ConsolidatedInvoice[] {
   return groups;
 }
 
+/** One-word KOT print status for a bill. */
+function KotPrintBadge({ kots }: { kots: IOrder[] }) {
+  const s = summarizeKotPrint(kots);
+  if (s.status === "untracked") return null;
+  const style =
+    s.status === "printed"
+      ? KOT_CHIP_STYLE.printed
+      : s.status === "partial"
+        ? "bg-amber-50 text-amber-800 border-amber-300"
+        : KOT_CHIP_STYLE.not_printed;
+  const label =
+    s.status === "printed"
+      ? "Printed"
+      : s.status === "partial"
+        ? `${s.printed}/${s.tracked} Printed`
+        : "Not Printed";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${style}`}
+    >
+      <Printer className="w-3 h-3" />
+      {label}
+    </span>
+  );
+}
+
 export default function InvoicesTable() {
   const [activePreset, setActivePreset] = useState<"today" | "yesterday" | "7days" | "all">("7days");
   const [filters, setFilters] = useState<Filters>(() => {
@@ -214,8 +249,10 @@ export default function InvoicesTable() {
     return groupInvoicesByTableSession(rawOrders);
   }, [rawOrders]);
 
+  const [kotFilter, setKotFilter] = useState<KotFilter>("all");
+
   const q = filters.query.toLowerCase().trim();
-  const filtered = consolidatedInvoices.filter(
+  const searched = consolidatedInvoices.filter(
     (inv) =>
       !q ||
       inv.tableLabel.toLowerCase().includes(q) ||
@@ -224,6 +261,23 @@ export default function InvoicesTable() {
       (inv.customerName ?? "").toLowerCase().includes(q) ||
       (inv.customerGstin ?? "").toLowerCase().includes(q),
   );
+
+  // KOT print status across the searched bills (before the KOT filter).
+  const kotStats = searched.reduce(
+    (acc, inv) => {
+      for (const k of inv.kots) acc[kotPrintState(k)] += 1;
+      return acc;
+    },
+    { printed: 0, not_printed: 0, untracked: 0 },
+  );
+
+  const filtered = searched.filter((inv) => {
+    if (kotFilter === "all") return true;
+    const s = summarizeKotPrint(inv.kots).status;
+    return kotFilter === "printed"
+      ? s === "printed"
+      : s === "not_printed" || s === "partial";
+  });
   const isPartial = rawOrders.length >= INVOICE_FETCH_LIMIT;
 
   const subtotalTotal = filtered.reduce((s, o) => s + o.subtotal, 0);
@@ -413,6 +467,50 @@ export default function InvoicesTable() {
             </button>
           </div>
         </div>
+
+        {/* KOT print status: filter + counts for the bills above */}
+        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+              <Printer className="w-3.5 h-3.5" /> KOT Print
+            </span>
+            {(
+              [
+                { key: "all", label: "All Bills" },
+                { key: "printed", label: "Printed" },
+                { key: "not_printed", label: "Not Printed" },
+              ] as { key: KotFilter; label: string }[]
+            ).map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setKotFilter(f.key)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all duration-150 ${
+                  kotFilter === f.key
+                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20 font-bold"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-bold">
+            <span className={`px-2 py-0.5 rounded-md border ${KOT_CHIP_STYLE.printed}`}>
+              ✓ {kotStats.printed} KOTs printed
+            </span>
+            <span className={`px-2 py-0.5 rounded-md border ${KOT_CHIP_STYLE.not_printed}`}>
+              ✗ {kotStats.not_printed} not printed
+            </span>
+            {kotStats.untracked > 0 && (
+              <span
+                className={`px-2 py-0.5 rounded-md border ${KOT_CHIP_STYLE.untracked}`}
+                title="KOT print status was not recorded before 19 Oct 2026, 10:27 PM"
+              >
+                {kotStats.untracked} not recorded
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {isError && (
@@ -497,15 +595,34 @@ export default function InvoicesTable() {
                         </span>
                       </div>
 
-                      {/* Included KOTs */}
+                      {/* Included KOTs + KOT print status */}
                       <div className="col-span-2 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                             {inv.kotCount} KOT{inv.kotCount > 1 ? "s" : ""}
                           </span>
-                          <span className="font-mono text-[11px] text-slate-600 truncate font-medium">
-                            {inv.kotNumbers.join(", ")}
-                          </span>
+                          <KotPrintBadge kots={inv.kots} />
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          {inv.kots.map((k) => {
+                            const s = kotPrintState(k);
+                            return (
+                              <span
+                                key={k._id}
+                                title={
+                                  s === "printed"
+                                    ? `Printed${k.kotPrintedAt ? ` at ${format(new Date(k.kotPrintedAt), "hh:mm a")}` : ""}`
+                                    : s === "not_printed"
+                                      ? "KOT not printed"
+                                      : "Print status not recorded (before 19 Oct)"
+                                }
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded-md border font-mono text-[10px] font-semibold ${KOT_CHIP_STYLE[s]}`}
+                              >
+                                {s === "printed" ? "✓ " : s === "not_printed" ? "✗ " : ""}
+                                {k.kotNumber}
+                              </span>
+                            );
+                          })}
                         </div>
                         <span className="text-[11px] text-slate-500 mt-0.5 block font-medium">
                           {inv.itemCount} items ordered

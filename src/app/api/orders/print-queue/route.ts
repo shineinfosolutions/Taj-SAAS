@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
     createdAt: { $gte: fourHoursAgo },
   })
     .sort({ createdAt: 1 }) // oldest unprinted first
-    .limit(50)
+    // Headroom: the agent skips KOTs it already printed without re-marking them,
+    // so a few failed marks must not fill the list and hide new KOTs.
+    .limit(200)
     // Only fields the KOT ticket actually renders — `total` is intentionally
     // excluded so the agent never receives monetary data it doesn't need.
     .select("kotNumber tableLabel captainName items specialInstructions createdAt")

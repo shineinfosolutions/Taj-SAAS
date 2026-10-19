@@ -3,11 +3,12 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { FileText, ArrowLeft, Search, Receipt, CheckCircle2, Clock } from "lucide-react";
+import { FileText, ArrowLeft, Search, Receipt, CheckCircle2, Clock, Printer } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { Pill } from "@/components/ui/Pill";
 import { BillPrintButton } from "./TableReceipt";
 import TodayInvoiceSummary from "@/components/reports/TodayInvoiceSummary";
+import { summarizeKotPrint } from "@/lib/kot-print";
 import type { IOrder } from "@/types";
 import type { TableBill } from "@/app/api/orders/cashier/route";
 
@@ -15,6 +16,32 @@ const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
 interface Props {
   onExit: () => void;
+}
+
+/** KOT print status for a bill: Printed / 1/2 Printed / KOT Not Printed. */
+function KotPrintStatus({ kots }: { kots: IOrder[] }) {
+  const s = summarizeKotPrint(kots);
+  if (s.status === "untracked") return null;
+  const style =
+    s.status === "printed"
+      ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+      : s.status === "partial"
+        ? "bg-amber-50 text-amber-800 border-amber-300"
+        : "bg-rose-50 text-rose-800 border-rose-300";
+  const label =
+    s.status === "printed"
+      ? "KOT Printed"
+      : s.status === "partial"
+        ? `KOT ${s.printed}/${s.tracked} Printed`
+        : "KOT Not Printed";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${style}`}
+    >
+      <Printer className="w-3 h-3" />
+      {label}
+    </span>
+  );
 }
 
 export default function CashierInvoices({ onExit }: Props) {
@@ -279,6 +306,7 @@ export default function CashierInvoices({ onExit }: Props) {
                   <span className="text-xs font-mono text-amber-800 font-semibold">
                     ({b.kotNumbers.join(", ")})
                   </span>
+                  <KotPrintStatus kots={b.kots} />
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap font-medium">
