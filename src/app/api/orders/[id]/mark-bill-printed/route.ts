@@ -31,7 +31,8 @@ export async function PATCH(
         },
       },
     ],
-    { new: true },
+    // Mongoose 9 rejects array (pipeline) updates unless opted in.
+    { new: true, updatePipeline: true },
   ).lean();
   if (!order) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ success: true });

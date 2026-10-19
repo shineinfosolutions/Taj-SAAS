@@ -46,7 +46,10 @@ export async function PATCH(
           },
         },
       ],
-      { new: true },
+      // Mongoose 9 rejects array (pipeline) updates unless opted in — without
+      // this every mark failed with a 500, KOTs never left the print queue and
+      // the queue filled up so new KOTs stopped printing.
+      { new: true, updatePipeline: true },
     ).lean();
 
     if (!order) {
