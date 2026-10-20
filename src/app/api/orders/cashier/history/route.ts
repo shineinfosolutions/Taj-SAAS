@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
-import { todayInTz, startOfDayTz, endOfDayTz } from "@/lib/time";
+import { businessDayRange, currentBusinessDate } from "@/lib/business-day";
 import type { IOrder } from "@/types";
 
-// Today's settled orders for the cashier (reprint / lookup). Cashier + admin.
+// The current business day's settled orders for the cashier (reprint / lookup).
+// Cashier + admin.
 export async function GET() {
   const session = await auth();
   if (!session?.user || !["admin", "cashier"].includes(session.user.role)) {
@@ -13,10 +14,8 @@ export async function GET() {
   }
   await connectDB();
 
-  // "Today" in the restaurant timezone, not the server's (Vercel runs UTC).
-  const today = todayInTz();
-  const start = startOfDayTz(today);
-  const end = endOfDayTz(today);
+  // Current business day (6 AM → 6 AM, restaurant timezone).
+  const { start, end } = businessDayRange(currentBusinessDate());
 
   const orders = await Order.find({
     status: { $in: ["paid", "cleared"] },

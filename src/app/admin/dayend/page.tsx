@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/utils";
 import { exportXlsx } from "@/lib/inventory/sheet";
 import ItemWiseReportModal, { type ItemWise } from "./ItemWiseReportModal";
+import { businessDayLabel, currentBusinessDate } from "@/lib/business-day";
 
 interface DayEnd {
   date: string;
@@ -43,7 +44,7 @@ interface DayEnd {
 const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
 export default function DayEndPage() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => currentBusinessDate());
   const { data } = useQuery<DayEnd>({
     queryKey: ["dayend", date],
     queryFn: () => getJSON(`/api/orders/dayend?date=${date}`),
@@ -97,7 +98,7 @@ export default function DayEndPage() {
     <div className="space-y-6">
       <PageHeader
         title="Day-end Report"
-        subtitle="Daily sales audit, payment collections, and staff sales performance"
+        subtitle={`Business day ${businessDayLabel(date)} — sales, payment collections and staff performance`}
         icon={CalendarDays}
         breadcrumbs={[
           { label: "Admin", href: "/admin/dashboard" },

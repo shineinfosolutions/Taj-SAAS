@@ -22,6 +22,9 @@ export interface IBrandingDoc extends Document {
   discountRequiresReason?: boolean; // reason mandatory when discounting (default true)
   discountApprovalThresholdPercent?: number; // discounts above this need the PIN (default 10)
   managerPinHash?: string; // bcrypt hash of the manager override PIN
+  // Day-close audit: when true, payments are blocked until the previous
+  // business day is audited. Admin can switch it off in an emergency.
+  dayCloseLockEnabled?: boolean;
   updatedAt: Date;
 }
 
@@ -47,6 +50,7 @@ const BrandingSchema = new Schema<IBrandingDoc>(
     discountRequiresReason: { type: Boolean, default: true },
     discountApprovalThresholdPercent: { type: Number, default: 10 },
     managerPinHash: { type: String },
+    dayCloseLockEnabled: { type: Boolean, default: true },
   },
   { timestamps: true },
 );

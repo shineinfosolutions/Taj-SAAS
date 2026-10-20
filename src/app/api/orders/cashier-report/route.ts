@@ -4,6 +4,11 @@ import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
 import Staff from "@/lib/db/models/Staff";
 import AdminUser from "@/lib/db/models/AdminUser";
+import {
+  businessDayRange,
+  currentBusinessDate,
+  isYmd,
+} from "@/lib/business-day";
 
 /**
  * Per-cashier billing report for a date (default today): who collected how
@@ -19,9 +24,10 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
-  const start = new Date(`${date}T00:00:00.000`);
-  const end = new Date(`${date}T23:59:59.999`);
+  // Business day (6 AM → 6 AM, restaurant timezone), by payment time.
+  const dateParam = searchParams.get("date");
+  const date = isYmd(dateParam) ? dateParam : currentBusinessDate();
+  const { start, end } = businessDayRange(date);
 
   const query: Record<string, unknown> = {
     status: { $in: ["paid", "cleared"] },

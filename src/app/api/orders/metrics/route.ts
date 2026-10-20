@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
-import { APP_TZ, todayInTz, startOfDayTz, endOfDayTz } from "@/lib/time";
+import { APP_TZ } from "@/lib/time";
+import {
+  BUSINESS_DAY_START_HOUR,
+  addDays,
+  businessRange,
+  currentBusinessDate,
+  isYmd,
+} from "@/lib/business-day";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -12,17 +19,28 @@ export async function GET(req: NextRequest) {
 
   await connectDB();
 
-  // Day boundaries computed in the restaurant timezone (not the server's), so
-  // "today"/range edges align with the same zone used to bucket below.
+  // Business-day boundaries (6 AM → 6 AM, restaurant timezone), matching the
+  // per-day bucketing below.
   const { searchParams } = new URL(req.url);
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
-  const from = fromParam
-    ? startOfDayTz(fromParam.slice(0, 10))
-    : new Date(
-        startOfDayTz(todayInTz()).getTime() - 29 * 24 * 60 * 60 * 1000,
-      );
-  const to = toParam ? endOfDayTz(toParam.slice(0, 10)) : endOfDayTz(todayInTz());
+  const today = currentBusinessDate();
+  const fromDay = isYmd(fromParam?.slice(0, 10))
+    ? fromParam!.slice(0, 10)
+    : addDays(today, -29);
+  const toDay = isYmd(toParam?.slice(0, 10)) ? toParam!.slice(0, 10) : today;
+  const { start: from, end: to } = businessRange(fromDay, toDay);
+  // Shift timestamps back by the day-start hour so $dateToString buckets by
+  // business day (a 2 AM order lands on the evening before).
+  const businessDateExpr = {
+    $dateToString: {
+      format: "%Y-%m-%d",
+      date: {
+        $subtract: ["$createdAt", BUSINESS_DAY_START_HOUR * 60 * 60 * 1000],
+      },
+      timezone: APP_TZ,
+    },
+  };
 
   const matchStage = { createdAt: { $gte: from, $lte: to } };
 
@@ -63,13 +81,7 @@ export async function GET(req: NextRequest) {
       { $match: { ...matchStage, status: { $in: ["paid", "cleared"] } } },
       {
         $group: {
-          _id: {
-            $dateToString: {
-              format: "%Y-%m-%d",
-              date: "$createdAt",
-              timezone: APP_TZ,
-            },
-          },
+          _id: businessDateExpr,
           revenue: { $sum: "$total" },
           orders: { $sum: 1 },
         },

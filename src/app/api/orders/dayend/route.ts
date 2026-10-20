@@ -4,9 +4,17 @@ import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
 import Item from "@/lib/db/models/Item";
 import "@/lib/db/models/Category"; // registers the schema so populate("categoryId") works
+import {
+  businessHourOrder,
+  businessRange,
+  currentBusinessDate,
+  hourInTz,
+  isYmd,
+} from "@/lib/business-day";
 
 /**
- * Day-end / sales summary for a date (default today), based on settled orders.
+ * Day-end / sales summary for a business day (default: the current one,
+ * 6 AM → 6 AM), based on settled orders by payment time.
  * ?date=YYYY-MM-DD, or ?from=YYYY-MM-DD&to=YYYY-MM-DD for a custom range.
  * Admin + cashier only.
  */
@@ -18,15 +26,15 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") || new Date().toISOString().slice(0, 10);
+  // Business days (6 AM → 6 AM, restaurant timezone), by payment time.
+  const dateParam = searchParams.get("date");
+  const date = isYmd(dateParam) ? dateParam : currentBusinessDate();
   // Optional custom range (?from=&to=, inclusive) — falls back to the single date.
-  const ymd = (v: string | null) =>
-    v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  const ymd = (v: string | null) => (isYmd(v) ? v : null);
   let from = ymd(searchParams.get("from")) ?? ymd(searchParams.get("to")) ?? date;
   let to = ymd(searchParams.get("to")) ?? from;
   if (from > to) [from, to] = [to, from];
-  const start = new Date(`${from}T00:00:00.000`);
-  const end = new Date(`${to}T23:59:59.999`);
+  const { start, end } = businessRange(from, to);
 
   // Settled orders this day (paid/cleared).
   const settled = await Order.find({
@@ -66,7 +74,7 @@ export async function GET(req: NextRequest) {
     const pm = o.paymentMethod ?? "unknown";
     byPayment[pm] = (byPayment[pm] ?? 0) + (o.paymentAmount ?? o.total ?? 0);
     const when = o.clearedAt ?? o.paidAt ?? o.createdAt;
-    const hour = `${new Date(when).getHours()}`.padStart(2, "0");
+    const hour = `${hourInTz(when)}`.padStart(2, "0");
     byHour[hour] = (byHour[hour] ?? 0) + (o.total ?? 0);
 
     const cap = o.captainName?.trim() || (o.placedByRole === "cashier" ? "Cashier Desk" : "Direct / QR");
@@ -172,7 +180,11 @@ export async function GET(req: NextRequest) {
     })),
     byHour: Object.entries(byHour)
       .map(([hour, amount]) => ({ hour, amount: Math.round(amount) }))
-      .sort((a, b) => a.hour.localeCompare(b.hour)),
+      // Business-day order: 06 … 23, 00 … 05
+      .sort(
+        (a, b) =>
+          businessHourOrder(Number(a.hour)) - businessHourOrder(Number(b.hour)),
+      ),
     topItems: top,
     itemWise,
     byCaptain: captains,

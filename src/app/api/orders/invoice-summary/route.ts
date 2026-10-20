@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db/mongoose";
 import Order from "@/lib/db/models/Order";
-import { todayInTz, startOfDayTz, endOfDayTz } from "@/lib/time";
+import {
+  businessDayRange,
+  currentBusinessDate,
+  isYmd,
+} from "@/lib/business-day";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Invoice totals for a day (default: today in the restaurant timezone), from
- * settled orders. Computed on the server with no row limit so the figure is
- * the full day's total. ?date=YYYY-MM-DD. Admin + cashier only.
+ * Invoice totals for a business day (default: the current one, 6 AM → 6 AM),
+ * from settled orders by payment time. Computed on the server with no row
+ * limit so the figure is the full day's total. ?date=YYYY-MM-DD.
+ * Admin + cashier only.
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -19,9 +24,8 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const param = new URL(req.url).searchParams.get("date");
-  const date = param && /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : todayInTz();
-  const start = startOfDayTz(date);
-  const end = endOfDayTz(date);
+  const date = isYmd(param) ? param : currentBusinessDate();
+  const { start, end } = businessDayRange(date);
 
   const settled = await Order.find({
     status: { $in: ["paid", "cleared"] },

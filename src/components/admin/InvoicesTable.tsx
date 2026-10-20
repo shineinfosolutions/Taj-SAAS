@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import {
   Filter,
   FileText,
@@ -24,6 +24,7 @@ import type { IOrder } from "@/types";
 import { BillPrintButton } from "@/components/cashier/TableReceipt";
 import TodayInvoiceSummary from "@/components/reports/TodayInvoiceSummary";
 import { kotPrintState, summarizeKotPrint } from "@/lib/kot-print";
+import { addDays, currentBusinessDate } from "@/lib/business-day";
 
 type KotFilter = "all" | "printed" | "not_printed";
 
@@ -89,7 +90,7 @@ export interface ConsolidatedInvoice {
 async function fetchInvoices(f: Filters): Promise<IOrder[]> {
   const p = new URLSearchParams({ settled: "1" });
   if (f.from) p.set("from", f.from);
-  if (f.to) p.set("to", f.to + "T23:59:59");
+  if (f.to) p.set("to", f.to); // business day — the API covers 6 AM → 6 AM
   const res = await fetch(`/api/orders?${p.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch invoices");
   const all: IOrder[] = await res.json();
@@ -204,8 +205,8 @@ function KotPrintBadge({ kots }: { kots: IOrder[] }) {
 export default function InvoicesTable() {
   const [activePreset, setActivePreset] = useState<"today" | "yesterday" | "7days" | "all">("7days");
   const [filters, setFilters] = useState<Filters>(() => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const weekAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+    const today = currentBusinessDate();
+    const weekAgo = addDays(today, -7);
     return { from: weekAgo, to: today, query: "" };
   });
 
@@ -230,14 +231,14 @@ export default function InvoicesTable() {
 
   const setPreset = (preset: "today" | "yesterday" | "7days" | "all") => {
     setActivePreset(preset);
-    const today = format(new Date(), "yyyy-MM-dd");
+    const today = currentBusinessDate();
     if (preset === "today") {
       setFilters((p) => ({ ...p, from: today, to: today }));
     } else if (preset === "yesterday") {
-      const yest = format(subDays(new Date(), 1), "yyyy-MM-dd");
+      const yest = addDays(today, -1);
       setFilters((p) => ({ ...p, from: yest, to: yest }));
     } else if (preset === "7days") {
-      const weekAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const weekAgo = addDays(today, -7);
       setFilters((p) => ({ ...p, from: weekAgo, to: today }));
     } else if (preset === "all") {
       setFilters((p) => ({ ...p, from: "", to: "" }));

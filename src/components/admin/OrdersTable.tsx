@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ChevronDown, ChevronRight, Filter, DownloadCloud, Printer } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { kotPrintState, type KotPrintState } from "@/lib/kot-print";
+import { addDays, currentBusinessDate } from "@/lib/business-day";
 import type { IOrder, OrderStatus } from "@/types";
 import { pillCls } from "@/components/ui/Pill";
 import type { PillVariant } from "@/components/ui/Pill";
@@ -80,7 +81,7 @@ interface Filters {
 async function fetchOrders(f: Filters): Promise<IOrder[]> {
   const p = new URLSearchParams();
   if (f.from) p.set("from", f.from);
-  if (f.to) p.set("to", f.to + "T23:59:59");
+  if (f.to) p.set("to", f.to); // business day — the API covers 6 AM → 6 AM
   if (f.status && f.status !== "all") p.set("status", f.status);
   const res = await fetch(`/api/orders?${p.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch orders");
@@ -324,12 +325,11 @@ export default function OrdersTableClient({
 }) {
   // Compute default dates outside render — stable initial values via useState initialiser
   const [filters, setFilters] = useState<Filters>(() => {
-    const now = new Date();
-    const ago = new Date(now);
-    ago.setDate(ago.getDate() - 6);
+    // Business days (6 AM → 6 AM): the last 7 including the current one.
+    const today = currentBusinessDate();
     return {
-      from: format(ago, "yyyy-MM-dd"),
-      to: format(now, "yyyy-MM-dd"),
+      from: addDays(today, -6),
+      to: today,
       status: "all",
       captainName: initialCaptain,
       tableLabel: "",

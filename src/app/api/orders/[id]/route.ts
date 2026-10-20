@@ -11,6 +11,19 @@ import { withTransaction } from "@/lib/db/withTransaction";
 import { billOrderTotals, roundBill, type Discount } from "@/lib/billing";
 import { checkDiscountAllowed } from "@/lib/discount-guard";
 import { isValidGstin, normalizeGstin } from "@/lib/gstin";
+import { billingBlock } from "@/lib/day-close";
+
+// Payments are refused while an earlier business day still needs its audit.
+// Orders and KOTs are never blocked — only settlement.
+function dayCloseBlockedResponse(pendingDate: string) {
+  return NextResponse.json(
+    {
+      error: `${pendingDate} ka day-close audit baaki hai — audit ke baad hi billing hogi`,
+      dayClosePending: pendingDate,
+    },
+    { status: 423 },
+  );
+}
 
 import bcrypt from "bcryptjs";
 import Staff from "@/lib/db/models/Staff";
@@ -379,6 +392,8 @@ export async function PATCH(
       if (!["admin", "cashier"].includes(session.user.role)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
+      const blockPC = await billingBlock();
+      if (blockPC) return dayCloseBlockedResponse(blockPC.pendingDate);
       const { paymentMethod, paymentAmount, printBill } = body;
       if (!paymentMethod) {
         return NextResponse.json(
@@ -467,6 +482,8 @@ export async function PATCH(
       if (!["admin", "cashier"].includes(session.user.role)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
+      const blockPT = await billingBlock();
+      if (blockPT) return dayCloseBlockedResponse(blockPT.pendingDate);
       const { tableId, paymentMethod, paymentAmount, splitPayment, printBill } =
         body;
       if (!tableId || (!paymentMethod && !splitPayment)) {

@@ -31,6 +31,7 @@ import DiscountControl, { useDiscount } from "@/components/pos/DiscountControl";
 import { formatPrice } from "@/lib/utils";
 import { isValidGstin, normalizeGstin } from "@/lib/gstin";
 import { roundBill } from "@/lib/billing";
+import { DAY_CLOSE_EVENT } from "./DayCloseGate";
 import { TableReceiptContent } from "./TableReceipt";
 
 // Round-up cash amounts a guest is likely to hand over for this bill.
@@ -332,6 +333,8 @@ export default function PaymentModal({
       });
       const data = await res.json();
       if (!res.ok) {
+        // 423 = previous business day not audited yet → bring the audit popup up.
+        if (res.status === 423) window.dispatchEvent(new Event(DAY_CLOSE_EVENT));
         throw new Error(data.error || "Failed to process payment");
       }
       toast.success("Payment Recorded — Invoice Printed!");

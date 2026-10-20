@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CalendarCheck } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { businessDayLabel } from "@/lib/business-day";
 
 interface InvoiceSummary {
   date: string;
@@ -43,6 +44,11 @@ export default function TodayInvoiceSummary() {
               ? "Loading…"
               : `${data.bills} bill${data.bills === 1 ? "" : "s"} · ${data.kots} KOT${data.kots === 1 ? "" : "s"}`}
           </p>
+          {data?.date && (
+            <p className="text-[10px] text-slate-400 font-medium">
+              Business day {businessDayLabel(data.date)}
+            </p>
+          )}
         </div>
       </div>
 

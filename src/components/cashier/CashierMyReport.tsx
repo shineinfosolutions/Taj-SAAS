@@ -9,10 +9,12 @@ import {
   type CashierReportData,
 } from "@/components/reports/CashierReportPrint";
 
+import { currentBusinessDate } from "@/lib/business-day";
+
 const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
 export default function CashierMyReport({ onExit }: { onExit: () => void }) {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => currentBusinessDate());
 
   const { data, isLoading } = useQuery<CashierReportData>({
     queryKey: ["cashier-my-report", date],

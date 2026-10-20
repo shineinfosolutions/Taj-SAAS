@@ -10,7 +10,8 @@ import {
   CalendarDays,
   Filter,
 } from "lucide-react";
-import { format, startOfMonth, subDays } from "date-fns";
+import { format } from "date-fns";
+import { addDays, currentBusinessDate } from "@/lib/business-day";
 import {
   Dialog,
   DialogContent,
@@ -76,21 +77,21 @@ export default function ItemWiseReportModal({
 
   const applyPreset = (p: Preset) => {
     setPreset(p);
-    const today = new Date();
-    const ymd = (d: Date) => format(d, "yyyy-MM-dd");
+    // Business days (6 AM → 6 AM), so 2 AM sales stay with the evening before.
+    const today = currentBusinessDate();
     if (p === "day") {
       setFrom(defaultDate);
       setTo(defaultDate);
     } else if (p === "yesterday") {
-      const y = ymd(subDays(today, 1));
+      const y = addDays(today, -1);
       setFrom(y);
       setTo(y);
     } else if (p === "7days") {
-      setFrom(ymd(subDays(today, 6)));
-      setTo(ymd(today));
+      setFrom(addDays(today, -6));
+      setTo(today);
     } else if (p === "month") {
-      setFrom(ymd(startOfMonth(today)));
-      setTo(ymd(today));
+      setFrom(`${today.slice(0, 8)}01`);
+      setTo(today);
     }
   };
 

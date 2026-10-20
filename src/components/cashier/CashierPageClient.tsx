@@ -18,6 +18,7 @@ import CashierNewOrder from "./CashierNewOrder";
 import CashierHistory from "./CashierHistory";
 import CashierInvoices from "./CashierInvoices";
 import CashierMyReport from "./CashierMyReport";
+import DayCloseGate from "./DayCloseGate";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,9 @@ export default function CashierPageClient({
             </button>
           </div>
         </header>
+
+        {/* Day-close audit: popup / banner; payments stay blocked until done */}
+        <DayCloseGate />
 
         {view === "new_order" ? (
           <div className="flex-1 overflow-hidden">

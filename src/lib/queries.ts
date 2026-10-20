@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { connectDB } from "@/lib/db/mongoose";
-import { todayInTz, startOfDayTz } from "@/lib/time";
+import { businessDayRange, currentBusinessDate } from "@/lib/business-day";
 import Branding from "@/lib/db/models/Branding";
 import Category from "@/lib/db/models/Category";
 import Item from "@/lib/db/models/Item";
@@ -150,10 +150,17 @@ export const getOrdersByDateRange = async (
 // ─── Dashboard Metrics ───────────────────────────────────────────────────────
 export const getDashboardMetrics = async () => {
   await connectDB();
-  // Day boundaries in the restaurant timezone, not the server's (Vercel = UTC).
-  const today = startOfDayTz(todayInTz());
+  // Business-day boundaries (6 AM → 6 AM, restaurant timezone), not the
+  // server's clock (Vercel = UTC).
+  const today = businessDayRange(currentBusinessDate()).start;
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
   const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const settledIn = (o: IOrder, from: Date, to: Date) => {
+    const when = o.clearedAt ?? o.paidAt;
+    if (!when) return false;
+    const t = new Date(when).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  };
 
   const [
     todayOrders,
@@ -203,14 +210,24 @@ export const getDashboardMetrics = async () => {
     Location.countDocuments({ isActive: true, isOccupied: true }),
   ]);
 
+  // Revenue = bills paid within the business day (same rule as Day-end and the
+  // cashier's "Today's Invoices").
   const todayRevenue = todayOrders
-    .filter((o) => o.status === "paid" || o.status === "cleared")
+    .filter(
+      (o) =>
+        (o.status === "paid" || o.status === "cleared") &&
+        settledIn(o, today, tomorrow),
+    )
     .reduce((sum, o) => sum + (o.total || o.paymentAmount || 0), 0);
 
   const todayOrderCount = todayOrders.length;
 
   const yesterdayRevenue = yesterdayOrders
-    .filter((o) => o.status === "paid" || o.status === "cleared")
+    .filter(
+      (o) =>
+        (o.status === "paid" || o.status === "cleared") &&
+        settledIn(o, yesterday, today),
+    )
     .reduce((sum, o) => sum + (o.total || o.paymentAmount || 0), 0);
 
   const yesterdayOrderCount = yesterdayOrders.length;

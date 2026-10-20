@@ -11,6 +11,7 @@ import { formatKotNumber, computeOrderTotals } from "@/lib/utils";
 import { deductForOrder } from "@/lib/inventory/deduct";
 import { autoDisableOutOfStock } from "@/lib/inventory/auto86";
 import { notifyLowStock } from "@/lib/inventory/notify";
+import { businessDayRange, isYmd } from "@/lib/business-day";
 import type { IOrder } from "@/types";
 
 // ─── GET /api/orders ─────────────────────────────────────────────────────────
@@ -39,16 +40,22 @@ export async function GET(req: NextRequest) {
   if (tableId) query.tableId = tableId;
   if (captainId) query.captainId = captainId;
   if (from || to) {
-    query.createdAt = {};
+    // A plain "YYYY-MM-DD" means a business day (6 AM → 6 AM, restaurant
+    // timezone); anything with a time part is taken as an exact instant.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const range: Record<string, any> = {};
     if (from) {
-      const d = new Date(from);
-      if (!from.includes("T")) d.setHours(0, 0, 0, 0);
-      query.createdAt.$gte = d;
+      range.$gte = isYmd(from) ? businessDayRange(from).start : new Date(from);
     }
     if (to) {
-      const d = new Date(to);
-      if (!to.includes("T")) d.setHours(23, 59, 59, 999);
-      query.createdAt.$lte = d;
+      range.$lte = isYmd(to) ? businessDayRange(to).end : new Date(to);
+    }
+    // Invoices are bucketed by when they were paid; the order log by when the
+    // order was placed.
+    if (settledOnly) {
+      query.$or = [{ clearedAt: range }, { paidAt: range }];
+    } else {
+      query.createdAt = range;
     }
   }
 

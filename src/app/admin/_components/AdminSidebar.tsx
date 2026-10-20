@@ -27,6 +27,7 @@ import {
   UserCheck,
   MessageSquare,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ const NAV_SECTIONS = [
       { href: "/admin/invoices", label: "Invoices", icon: FileText },
       { href: "/admin/crm", label: "Customers & CRM", icon: UserCheck },
       { href: "/admin/dayend", label: "Day-end", icon: CalendarDays },
+      { href: "/admin/day-close", label: "Day Close Audit", icon: ShieldCheck },
       { href: "/admin/cashier-report", label: "Cashier Report", icon: Landmark },
       { href: "/admin/metrics", label: "Metrics", icon: BarChart3 },
     ],

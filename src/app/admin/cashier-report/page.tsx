@@ -11,10 +11,12 @@ import {
   type CashierReportData,
 } from "@/components/reports/CashierReportPrint";
 
+import { businessDayLabel, currentBusinessDate } from "@/lib/business-day";
+
 const getJSON = (u: string) => fetch(u).then((r) => r.json());
 
 export default function CashierReportPage() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => currentBusinessDate());
 
   const { data } = useQuery<CashierReportData>({
     queryKey: ["cashier-report", date],
@@ -33,7 +35,7 @@ export default function CashierReportPage() {
     <div className="space-y-6">
       <PageHeader
         title="Cashier-wise Report"
-        subtitle="How much each cashier billed and collected, by payment method"
+        subtitle={`Business day ${businessDayLabel(date)} — how much each cashier collected, by payment method`}
         icon={Landmark}
         breadcrumbs={[
           { label: "Admin", href: "/admin/dashboard" },
