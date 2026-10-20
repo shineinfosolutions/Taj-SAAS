@@ -77,11 +77,11 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
 
   const submit = async () => {
     if (cashNum === null || !Number.isFinite(cashNum) || cashNum < 0) {
-      toast.error("Drawer mein gina hua cash bharein");
+      toast.error("Enter the cash counted in the drawer");
       return;
     }
     if (cashDiff !== 0 && !remark.trim()) {
-      toast.error("Cash mein fark hai — remark likhein");
+      toast.error("Cash does not match — enter a remark");
       return;
     }
     setSaving(true);
@@ -99,8 +99,8 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Audit save nahi hua");
-      toast.success(`${businessDate} ka audit ho gaya — billing chalu`);
+      if (!res.ok) throw new Error(data.error || "Could not save the audit");
+      toast.success(`Audit for ${businessDate} saved — billing resumed`);
       setClosedAt(data.record?.closedAt ?? new Date().toISOString());
     } catch (e) {
       toast.error((e as Error).message);
@@ -110,14 +110,14 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
   };
 
   if (isLoading) {
-    return <p className="p-6 text-center text-sm text-slate-500">Hisaab load ho raha hai…</p>;
+    return <p className="p-6 text-center text-sm text-slate-500">Loading day totals…</p>;
   }
   if (isError || !s) {
     return (
       <div className="p-6 text-center space-y-2">
-        <p className="text-sm text-rose-700 font-semibold">Hisaab load nahi hua.</p>
+        <p className="text-sm text-rose-700 font-semibold">Could not load the day totals.</p>
         <button className="btn btn-sm" onClick={() => refetch()}>
-          Dobara try karein
+          Try again
         </button>
       </div>
     );
@@ -196,7 +196,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
             <Printer className="w-4 h-4" /> Print Z-Report
           </button>
           <button className="btn btn-sm btn-success text-white" onClick={onDone}>
-            Billing shuru karein
+            Resume billing
           </button>
         </div>
         <div style={{ position: "absolute", left: "-9999px", top: 0 }}>{zReport}</div>
@@ -209,7 +209,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
       <div className="rounded-xl bg-amber-50 border border-amber-300 px-3 py-2">
         <p className="font-black text-amber-900">Business day {businessDayLabel(businessDate)}</p>
         <p className="text-xs text-amber-800">
-          {s.bills} bills · {s.kots} KOTs · pehla bill {timeFmt(s.firstBillAt)} · aakhri bill{" "}
+          {s.bills} bills · {s.kots} KOTs · first bill {timeFmt(s.firstBillAt)} · last bill{" "}
           {timeFmt(s.lastBillAt)}
         </p>
       </div>
@@ -233,7 +233,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
       </div>
 
       <div className="rounded-xl border border-slate-200 p-3 space-y-1 text-xs">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Dhyan dene wali cheezein</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Exceptions</p>
         {row("Cancelled / void KOT", s.cancelled.length)}
         {s.cancelled.slice(0, 8).map((c) => (
           <p key={c.kot} className="pl-3 text-slate-500">
@@ -242,14 +242,14 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
             {c.reason ? ` · "${c.reason}"` : ""}
           </p>
         ))}
-        {row("Discount wale bills", s.discounts.length)}
+        {row("Bills with discount", s.discounts.length)}
         {row("Reopen / refund", s.reopened.length)}
         {row(
           "KOT print",
           `${s.kotPrint.printed} printed · ${s.kotPrint.notPrinted} not printed`,
         )}
         {row(
-          "Khule tables (agle din jayenge)",
+          "Open tables (carried to next day)",
           s.openTables.count
             ? `${s.openTables.count} · ${formatPrice(s.openTables.total)}`
             : "0",
@@ -260,10 +260,10 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
       </div>
 
       <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/40 p-3 space-y-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Gin ke bharein</p>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-800">Counted amounts</p>
         <label className="block">
           <span className="text-xs font-bold text-slate-700">
-            Drawer mein cash (zaroori) — system: {formatPrice(s.cashExpected)}
+            Cash in drawer (required) — system: {formatPrice(s.cashExpected)}
           </span>
           <input
             type="number"
@@ -310,7 +310,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
         </div>
         <label className="block">
           <span className="text-xs font-bold text-slate-700">
-            Remark {cashDiff !== null && cashDiff !== 0 ? "(zaroori — cash mein fark hai)" : "(optional)"}
+            Remark {cashDiff !== null && cashDiff !== 0 ? "(required — cash does not match)" : "(optional)"}
           </span>
           <textarea
             value={remark}
@@ -322,7 +322,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
         {needsPin && (
           <label className="block">
             <span className="text-xs font-bold text-rose-700 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> ₹{pinThreshold} se zyada fark — Manager PIN
+              <ShieldCheck className="w-3.5 h-3.5" /> ₹{pinThreshold} + difference — Manager PIN
             </span>
             <input
               type="password"
@@ -340,7 +340,7 @@ export default function DayCloseForm({ businessDate, pinThreshold, onDone }: Pro
           className="btn btn-success w-full text-white font-black"
         >
           {saving ? <span className="loading loading-spinner loading-sm" /> : <ShieldCheck className="w-4 h-4" />}
-          Audit Submit karein
+          Submit Audit
         </button>
       </div>
       <div style={{ position: "absolute", left: "-9999px", top: 0 }}>{zReport}</div>

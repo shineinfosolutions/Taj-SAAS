@@ -27,14 +27,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "businessDate required" }, { status: 400 });
   }
   if (!reason) {
-    return NextResponse.json({ error: "Override ka reason likhein" }, { status: 400 });
+    return NextResponse.json({ error: "Enter a reason for the override" }, { status: 400 });
   }
 
   await connectDB();
   const pending = await pendingDayCloses();
   if (!pending.includes(businessDate)) {
     return NextResponse.json(
-      { error: "Ye din audit ke liye baaki nahi hai" },
+      { error: "This day is not pending audit" },
       { status: 409 },
     );
   }
@@ -56,11 +56,11 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     if ((e as { code?: number }).code === 11000) {
       return NextResponse.json(
-        { error: "Is din ka audit pehle hi ho chuka hai" },
+        { error: "This day has already been audited" },
         { status: 409 },
       );
     }
     console.error("[POST /api/day-close/override]", e);
-    return NextResponse.json({ error: "Override save nahi hua" }, { status: 500 });
+    return NextResponse.json({ error: "Could not save the override" }, { status: 500 });
   }
 }

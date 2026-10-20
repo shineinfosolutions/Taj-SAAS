@@ -74,7 +74,7 @@ export default function DayClosePage() {
     if (
       !next &&
       !window.confirm(
-        "Lock band karne se audit ke bina bhi billing hogi. Sirf emergency mein. Band karein?",
+        "Turning the lock off allows billing without the day-close audit. Use only in an emergency. Turn it off?",
       )
     )
       return;
@@ -87,7 +87,7 @@ export default function DayClosePage() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Update failed");
-      toast.success(next ? "Audit lock ON" : "Audit lock OFF — billing bina audit ke chalegi");
+      toast.success(next ? "Audit lock ON" : "Audit lock OFF — billing allowed without the audit");
       refresh();
     } catch (e) {
       toast.error((e as Error).message);
@@ -99,7 +99,7 @@ export default function DayClosePage() {
   const submitOverride = async () => {
     if (!overrideFor) return;
     if (!overrideReason.trim()) {
-      toast.error("Override ka reason likhein");
+      toast.error("Enter a reason for the override");
       return;
     }
     setBusy(true);
@@ -111,7 +111,7 @@ export default function DayClosePage() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Override failed");
-      toast.success(`${overrideFor} override ho gaya`);
+      toast.success(`${overrideFor} overridden`);
       setOverrideFor(null);
       setOverrideReason("");
       refresh();
@@ -150,7 +150,7 @@ export default function DayClosePage() {
     <div className="space-y-6">
       <PageHeader
         title="Day Close Audit"
-        subtitle="Har business day (subah 6 → agli subah 6) ka audit — audit ke baad hi agle din billing"
+        subtitle="Audit every business day (6 AM → 6 AM next day) — billing for the next day starts after the audit"
         icon={ShieldCheck}
         breadcrumbs={[
           { label: "Admin", href: "/admin/dashboard" },
@@ -159,7 +159,7 @@ export default function DayClosePage() {
       />
 
       {isError && (
-        <div className="alert alert-error text-sm">Audit data load nahi hua. Page refresh karein.</div>
+        <div className="alert alert-error text-sm">Could not load audit data. Refresh the page.</div>
       )}
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
 
@@ -178,8 +178,8 @@ export default function DayClosePage() {
               </p>
               <p className="text-xs text-slate-500">
                 {data.enforced
-                  ? "Pichhle din ka audit baaki ho to payment / bill band rehta hai. Order aur KOT kabhi band nahi hote."
-                  : `Rule ${data.firstAuditDate} ke business day se lagu — pehla popup agli subah 6 baje.`}
+                  ? "Payments and bills are blocked while the previous day's audit is pending. Orders and KOTs are never blocked."
+                  : `Rule applies from the ${data.firstAuditDate} business day — the first popup appears at 6 AM the next morning.`}
                 {" "}Current business day: {businessDayLabel(data.currentBusinessDate)}.
               </p>
             </div>
@@ -188,17 +188,17 @@ export default function DayClosePage() {
               disabled={busy}
               className={`btn btn-sm font-bold ${data.lockEnabled ? "btn-outline btn-error" : "btn-success text-white"}`}
             >
-              {data.lockEnabled ? "Lock OFF karein (emergency)" : "Lock ON karein"}
+              {data.lockEnabled ? "Turn lock OFF (emergency)" : "Turn lock ON"}
             </button>
           </div>
 
           {/* Pending audits */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
             <p className="font-black text-slate-900">
-              Baaki audit ({data.pending.length})
+              Pending audits ({data.pending.length})
             </p>
             {data.pending.length === 0 ? (
-              <p className="text-sm text-emerald-700 font-semibold">Koi audit baaki nahi ✓</p>
+              <p className="text-sm text-emerald-700 font-semibold">No audits pending ✓</p>
             ) : (
               data.pending.map((d, i) => (
                 <div key={d} className="rounded-xl border border-rose-200 bg-rose-50/40 p-3 space-y-3">
@@ -210,10 +210,10 @@ export default function DayClosePage() {
                       <button
                         className="btn btn-xs btn-success text-white"
                         disabled={i !== 0}
-                        title={i !== 0 ? "Pehle purane din ka audit karein" : undefined}
+                        title={i !== 0 ? "Audit the older day first" : undefined}
                         onClick={() => setAuditing(auditing === d ? null : d)}
                       >
-                        Audit karein
+                        Do Audit
                       </button>
                       <button
                         className="btn btn-xs btn-outline btn-warning"
@@ -228,11 +228,11 @@ export default function DayClosePage() {
                       <input
                         value={overrideReason}
                         onChange={(e) => setOverrideReason(e.target.value)}
-                        placeholder="Override ka reason (zaroori)"
+                        placeholder="Reason for override (required)"
                         className="input input-sm input-bordered flex-1 min-w-[220px]"
                       />
                       <button className="btn btn-sm btn-warning" disabled={busy} onClick={submitOverride}>
-                        Override save karein
+                        Save override
                       </button>
                     </div>
                   )}
@@ -269,10 +269,10 @@ export default function DayClosePage() {
                     <th className="text-right">Bills</th>
                     <th className="text-right">Sales</th>
                     <th className="text-right">Cash (system)</th>
-                    <th className="text-right">Cash (gina)</th>
-                    <th className="text-right">Fark</th>
+                    <th className="text-right">Cash (counted)</th>
+                    <th className="text-right">Difference</th>
                     <th>Remark</th>
-                    <th>Kisne / kab</th>
+                    <th>Closed by / at</th>
                     <th>After-close</th>
                   </tr>
                 </thead>
@@ -280,7 +280,7 @@ export default function DayClosePage() {
                   {data.days.length === 0 && (
                     <tr>
                       <td colSpan={10} className="text-center text-sm text-slate-400 py-8">
-                        Abhi koi audit nahi hua.
+                        No audits yet.
                       </td>
                     </tr>
                   )}
@@ -324,7 +324,7 @@ export default function DayClosePage() {
                           "—"
                         ) : (
                           <span className="text-rose-700 font-bold" title={d.afterClose.map((a) => `${a.kot} ${a.table}: ${a.reason ?? ""}`).join("\n")}>
-                            {d.afterClose.length} badlav
+                            {d.afterClose.length} changes
                           </span>
                         )}
                       </td>

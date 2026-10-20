@@ -61,13 +61,13 @@ export default function DayCloseGate() {
       <div className="shrink-0 bg-rose-600 text-white px-4 py-1.5 flex items-center justify-between gap-3 text-xs font-bold">
         <span className="flex items-center gap-1.5">
           <ShieldAlert className="w-4 h-4" />
-          {date} ka audit baaki hai — tab tak billing (payment) band hai. Order aur KOT chalu hain.
+          Day-close audit pending for {date} — payments are blocked until it is done. Orders and KOTs keep working.
         </span>
         <button
           onClick={() => setMinimized(false)}
           className="btn btn-xs bg-white text-rose-700 border-none font-black"
         >
-          Audit karein
+          Do Audit
         </button>
       </div>
     );
@@ -79,19 +79,19 @@ export default function DayCloseGate() {
         <div className="sticky top-0 z-10 bg-rose-600 text-white px-4 py-3 rounded-t-2xl flex items-start justify-between gap-3">
           <div>
             <p className="font-black flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5" /> Day Close Audit baaki hai
+              <ShieldAlert className="w-5 h-5" /> Day Close Audit Pending
             </p>
             <p className="text-xs text-white/90">
-              Business day {businessDayLabel(date)} — audit ke baad hi billing hogi.
-              {data.pending.length > 1 && ` (${data.pending.length} din baaki)`}
+              Business day {businessDayLabel(date)} — billing resumes after the audit.
+              {data.pending.length > 1 && ` (${data.pending.length} days pending)`}
             </p>
           </div>
           <button
             onClick={() => setMinimized(true)}
             className="btn btn-xs bg-white/15 hover:bg-white/25 text-white border-white/30 shrink-0"
-            title="Popup chhota karein — order lena chalu rahega, payment band rahega"
+            title="Minimise — orders keep working, payments stay blocked"
           >
-            Baad mein (sirf order)
+            Later (orders only)
           </button>
         </div>
         <div className="p-4">

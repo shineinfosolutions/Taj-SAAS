@@ -18,7 +18,7 @@ import { billingBlock } from "@/lib/day-close";
 function dayCloseBlockedResponse(pendingDate: string) {
   return NextResponse.json(
     {
-      error: `${pendingDate} ka day-close audit baaki hai — audit ke baad hi billing hogi`,
+      error: `Day-close audit pending for ${pendingDate} — complete the audit to resume billing`,
       dayClosePending: pendingDate,
     },
     { status: 423 },

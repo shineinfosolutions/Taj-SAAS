@@ -70,13 +70,13 @@ export async function POST(req: NextRequest) {
   const upiReported = num(body.upiReported);
   if (cashCounted === undefined || !Number.isFinite(cashCounted) || cashCounted < 0) {
     return NextResponse.json(
-      { error: "Drawer mein gina hua cash bharein" },
+      { error: "Enter the cash counted in the drawer" },
       { status: 400 },
     );
   }
   for (const v of [cardReported, upiReported]) {
     if (v !== undefined && (!Number.isFinite(v) || v < 0)) {
-      return NextResponse.json({ error: "Card / UPI amount galat hai" }, { status: 400 });
+      return NextResponse.json({ error: "Card / UPI amount is invalid" }, { status: 400 });
     }
   }
   const remark = typeof body.remark === "string" ? body.remark.trim() : "";
@@ -90,15 +90,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: already
-          ? "Is din ka audit pehle hi ho chuka hai"
-          : "Is din ka audit abhi nahi ho sakta",
+          ? "This day has already been audited"
+          : "This day cannot be audited yet",
       },
       { status: 409 },
     );
   }
   if (pending[0] !== businessDate) {
     return NextResponse.json(
-      { error: `Pehle ${pending[0]} ka audit karein` },
+      { error: `Audit ${pending[0]} first` },
       { status: 409 },
     );
   }
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
   if (cashDiff !== 0 && !remark) {
     return NextResponse.json(
-      { error: "Cash mein fark hai — remark likhna zaroori hai" },
+      { error: "Cash does not match — a remark is required" },
       { status: 400 },
     );
   }
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       if (!pin || !(await bcrypt.compare(pin, branding.managerPinHash))) {
         return NextResponse.json(
           {
-            error: `₹${DAY_CLOSE_PIN_THRESHOLD} se zyada fark — sahi manager PIN chahiye`,
+            error: `Cash difference above ₹${DAY_CLOSE_PIN_THRESHOLD} — a valid manager PIN is required`,
             needsPin: true,
           },
           { status: 403 },
@@ -154,11 +154,11 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     if ((e as { code?: number }).code === 11000) {
       return NextResponse.json(
-        { error: "Is din ka audit pehle hi ho chuka hai" },
+        { error: "This day has already been audited" },
         { status: 409 },
       );
     }
     console.error("[POST /api/day-close]", e);
-    return NextResponse.json({ error: "Audit save nahi hua" }, { status: 500 });
+    return NextResponse.json({ error: "Could not save the audit" }, { status: 500 });
   }
 }
