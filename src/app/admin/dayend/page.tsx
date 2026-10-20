@@ -15,6 +15,7 @@ import {
   Users,
   UtensilsCrossed,
   Award,
+  FileText,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { businessDayLabel, currentBusinessDate } from "@/lib/business-day";
 interface DayEnd {
   date: string;
   orderCount: number;
+  invoiceCount: number;
   sales: number;
   tax: number;
   net: number;
@@ -64,6 +66,12 @@ export default function DayEndPage() {
       color: "bg-amber-50 text-amber-700 border-amber-200",
     },
     {
+      label: "Total Invoices",
+      value: data?.invoiceCount ?? "—",
+      icon: FileText,
+      color: "bg-violet-50 text-violet-700 border-violet-200",
+    },
+    {
       label: "Tax Collected",
       value: data ? formatPrice(data.tax) : "—",
       icon: IndianRupee,
@@ -98,7 +106,7 @@ export default function DayEndPage() {
     <div className="space-y-6">
       <PageHeader
         title="Day-end Report"
-        subtitle={`Business day ${businessDayLabel(date)} — sales, payment collections and staff performance`}
+        subtitle={`Business day: ${businessDayLabel(date)}`}
         icon={CalendarDays}
         breadcrumbs={[
           { label: "Admin", href: "/admin/dashboard" },
@@ -126,6 +134,7 @@ export default function DayEndPage() {
                     { metric: "Net", value: data.net },
                     { metric: "Tax", value: data.tax },
                     { metric: "Orders", value: data.orderCount },
+                    { metric: "Invoices", value: data.invoiceCount },
                     { metric: "Items sold", value: data.itemsSold },
                     { metric: "NC count", value: data.ncCount },
                     { metric: "NC value", value: data.ncValue },
@@ -156,7 +165,7 @@ export default function DayEndPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
         {cards.map((c) => (
           <div
             key={c.label}

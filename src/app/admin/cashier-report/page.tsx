@@ -35,7 +35,7 @@ export default function CashierReportPage() {
     <div className="space-y-6">
       <PageHeader
         title="Cashier-wise Report"
-        subtitle={`Business day ${businessDayLabel(date)} — how much each cashier collected, by payment method`}
+        subtitle={`Business day: ${businessDayLabel(date)}`}
         icon={Landmark}
         breadcrumbs={[
           { label: "Admin", href: "/admin/dashboard" },

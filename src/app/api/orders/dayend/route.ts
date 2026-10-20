@@ -68,7 +68,13 @@ export async function GET(req: NextRequest) {
     { name: string; qty: number; revenue: number; instances: ItemSaleInstance[] }
   > = {};
 
+  // One customer invoice = the KOTs of a table settled together (they share
+  // the settle timestamp), so count distinct {table, settle time}.
+  const invoices = new Set<string>();
   for (const o of settled) {
+    invoices.add(
+      `${String(o.tableId)}|${new Date(o.clearedAt ?? o.paidAt ?? o.createdAt).getTime()}`,
+    );
     sales += o.total ?? 0;
     tax += o.tax ?? 0;
     const pm = o.paymentMethod ?? "unknown";
@@ -167,6 +173,7 @@ export async function GET(req: NextRequest) {
     from,
     to,
     orderCount: settled.length,
+    invoiceCount: invoices.size,
     sales: Math.round(sales * 100) / 100,
     tax: Math.round(tax * 100) / 100,
     net: Math.round((sales - tax) * 100) / 100,
